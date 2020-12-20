@@ -27,7 +27,9 @@ func (w *CLI) Write(data []byte, level levels.Level) {
 	switch level {
 	case levels.LevelSilent:
 		os.Stdout.Write(data)
+		os.Stdout.Write([]byte("\n"))
 	default:
 		os.Stderr.Write(data)
+		os.Stderr.Write([]byte("\n"))
 	}
 }

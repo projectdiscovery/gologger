@@ -23,6 +23,7 @@ var (
 
 func init() {
 	DefaultLogger = &Logger{}
+	DefaultLogger.SetMaxLevel(levels.LevelInfo)
 	DefaultLogger.SetFormatter(&formatter.CLI{NoUseColors: false})
 	DefaultLogger.SetWriter(writer.NewCLI())
 }
@@ -39,6 +40,15 @@ func (l *Logger) Log(event *Event) {
 	if event.level > l.maxLevel {
 		return
 	}
+	data, err := l.formatter.Format(&formatter.LogEvent{
+		Message:  event.message,
+		Level:    event.level,
+		Metadata: event.metadata,
+	})
+	if err != nil {
+		return
+	}
+	l.writer.Write(data, event.level)
 }
 
 // SetMaxLevel sets the max logging level for logger

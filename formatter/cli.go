@@ -21,12 +21,13 @@ func (c *CLI) Format(event *LogEvent) ([]byte, error) {
 	buffer := &bytes.Buffer{}
 	buffer.Grow(len(event.Message))
 
-	label, ok := event.Metadata["label"]
-	if label != "" && ok {
+	lable, ok := event.Metadata["lable"]
+	if lable != "" && ok {
 		buffer.WriteRune('[')
-		buffer.WriteString(label)
+		buffer.WriteString(lable)
 		buffer.WriteRune(']')
 		buffer.WriteRune(' ')
+		delete(event.Metadata, "lable")
 	}
 	buffer.WriteString(event.Message)
 
@@ -36,7 +37,6 @@ func (c *CLI) Format(event *LogEvent) ([]byte, error) {
 		buffer.WriteRune('=')
 		buffer.WriteString(v)
 	}
-	buffer.WriteRune('\n')
 	data := buffer.Bytes()
 	return data, nil
 }
@@ -49,7 +49,7 @@ func (c *CLI) colorizeKey(key string) string {
 	return aurora.Bold(key).String()
 }
 
-// colorizeLable colorizes the label if their exists one and colors are enabled
+// colorizeLable colorizes the lables if their exists one and colors are enabled
 func (c *CLI) colorizeLable(event *LogEvent) {
 	lable := event.Metadata["lable"]
 	if lable == "" || c.NoUseColors {

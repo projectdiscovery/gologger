@@ -11,12 +11,19 @@ type JSON struct{}
 
 var _ Formatter = &JSON{}
 
+var jsoniterCfg jsoniter.API
+
+func init() {
+	jsoniterCfg = jsoniter.Config{SortMapKeys: true}.Froze()
+}
+
 // Format formats the log event data into bytes
 func (j *JSON) Format(event *LogEvent) ([]byte, error) {
 	data := make(map[string]interface{})
-	if label, ok := event.Metadata["label"]; ok {
-		if label != "" {
-			data["level"] = label
+	if lable, ok := event.Metadata["lable"]; ok {
+		if lable != "" {
+			data["level"] = lable
+			delete(event.Metadata, "lable")
 		}
 	}
 	for k, v := range event.Metadata {
@@ -24,5 +31,5 @@ func (j *JSON) Format(event *LogEvent) ([]byte, error) {
 	}
 	data["msg"] = event.Message
 	data["timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05-0700")
-	return jsoniter.Marshal(event)
+	return jsoniterCfg.Marshal(data)
 }
