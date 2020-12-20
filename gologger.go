@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/projectdiscovery/gologger/formatter"
 )
 
 // Level defines all the available levels we can log at
@@ -14,6 +15,7 @@ type Level int
 
 // Available logging levels
 const (
+	// Null means no logging
 	Null Level = iota
 	Fatal
 	Silent
@@ -46,9 +48,21 @@ var (
 	mutex = &sync.Mutex{}
 )
 
-var stringBuilderPool = &sync.Pool{New: func() interface{} {
-	return new(strings.Builder)
-}}
+// Logger is a logger for logging structured data in a beautfiul and fast manner.
+type Logger struct {
+	writer    Writer
+	formatter formatter.Formatter
+}
+
+// SetFormatter sets the formatter instance for a logger
+func (l *Logger) SetFormatter(formatter formatter.Formatter) {
+	l.formatter = formatter
+}
+
+// SetWriter sets the writer instance for a logger
+func (l *Logger) SetWriter(writer Writer) {
+	l.writer = writer
+}
 
 // wrap wraps a given label for a message to a logg-able representation.
 // It checks if colors are specified and what level we are logging at.
