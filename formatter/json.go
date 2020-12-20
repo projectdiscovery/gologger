@@ -1,7 +1,6 @@
 package formatter
 
 import (
-	"regexp"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -12,17 +11,18 @@ type JSON struct{}
 
 var _ Formatter = &JSON{}
 
-// filter matches ASCII color code sequences.
-// See https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
-var filter = regexp.MustCompile(`\x1b\[[0-9;]+m`)
-
 // Format formats the log event data into bytes
-func (j *JSON) Format(event LogEvent) ([]byte, error) {
-	msg, ok := event["msg"]
-	if !ok {
-		return nil, nil
+func (j *JSON) Format(event *LogEvent) ([]byte, error) {
+	data := make(map[string]interface{})
+	if label, ok := event.Metadata["label"]; ok {
+		if label != "" {
+			data["level"] = label
+		}
 	}
-	event["timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05-0700")
-	event["msg"] = filter.ReplaceAllString(msg, "")
+	for k, v := range event.Metadata {
+		data[k] = v
+	}
+	data["msg"] = event.Message
+	data["timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05-0700")
 	return jsoniter.Marshal(event)
 }
