@@ -2,180 +2,264 @@ package gologger
 
 import (
 	"fmt"
-	"os"
-	"strings"
-	"sync"
 
-	"github.com/logrusorgru/aurora"
-)
-
-// Level defines all the available levels we can log at
-type Level int
-
-// Available logging levels
-const (
-	Null Level = iota
-	Fatal
-	Silent
-	Label
-	Misc
-	Error
-	Info
-	Warning
-	Debug
-	Verbose
+	"github.com/projectdiscovery/gologger/formatter"
+	"github.com/projectdiscovery/gologger/levels"
+	"github.com/projectdiscovery/gologger/writer"
 )
 
 var (
-	// UseColors can be used to control coloring of the output
-	UseColors = true
-	// MaxLevel is the maximum level to log at. By default, logging
-	// is done at Info level. Using verbose will display all the errors too,
-	// Using silent will display only the most relevant information.
-	MaxLevel = Info
-
-	labels = map[Level]string{
-		Warning: "WRN",
-		Error:   "ERR",
-		Label:   "WRN",
-		Fatal:   "FTL",
-		Debug:   "DBG",
-		Info:    "INF",
+	lables = map[levels.Level]string{
+		levels.LevelFatal:   "FTL",
+		levels.LevelError:   "ERR",
+		levels.LevelInfo:    "INF",
+		levels.LevelWarning: "WRN",
+		levels.LevelDebug:   "DBG",
+		levels.LevelVerbose: "VER",
 	}
-
-	mutex = &sync.Mutex{}
+	// DefaultLogger is the default logging instance
+	DefaultLogger *Logger
 )
 
-var stringBuilderPool = &sync.Pool{New: func() interface{} {
-	return new(strings.Builder)
-}}
-
-// wrap wraps a given label for a message to a logg-able representation.
-// It checks if colors are specified and what level we are logging at.
-func wrap(label string, level Level) string {
-	// Check if we are not using colors, if not, return
-	if !UseColors {
-		return label
-	}
-
-	switch level {
-	case Silent:
-		return label
-	case Info, Verbose:
-		return aurora.Blue(label).String()
-	case Fatal:
-		return aurora.Bold(aurora.Red(label)).String()
-	case Error:
-		return aurora.Red(label).String()
-	case Debug:
-		return aurora.Magenta(label).String()
-	case Warning, Label:
-		return aurora.Yellow(label).String()
-	default:
-		return label
-	}
+func init() {
+	DefaultLogger = &Logger{}
+	DefaultLogger.SetMaxLevel(levels.LevelInfo)
+	DefaultLogger.SetFormatter(&formatter.CLI{NoUseColors: false})
+	DefaultLogger.SetWriter(writer.NewCLI())
 }
 
-// getLabel generates a label for a given message, depending on the level
-// and the label passed.
-func getLabel(level Level, label string, sb *strings.Builder) {
-	switch level {
-	case Silent, Misc:
-		return
-	case Error, Fatal, Info, Warning, Debug, Label:
-		sb.WriteString("[")
-		sb.WriteString(wrap(labels[level], level))
-		sb.WriteString("]")
-		sb.WriteString(" ")
-		return
-	case Verbose:
-		sb.WriteString("[")
-		sb.WriteString(wrap(label, level))
-		sb.WriteString("]")
-		sb.WriteString(" ")
-		return
-	default:
+// Logger is a logger for logging structured data in a beautfiul and fast manner.
+type Logger struct {
+	writer    writer.Writer
+	maxLevel  levels.Level
+	formatter formatter.Formatter
+}
+
+// Log logs a message to a logger instance
+func (l *Logger) Log(event *Event) {
+	if event.level > l.maxLevel {
 		return
 	}
-}
-
-// log logs the actual message to the screen
-func log(level Level, label string, format string, args ...interface{}) {
-	// Don't log if the level is null
-	if level == Null {
+	data, err := l.formatter.Format(&formatter.LogEvent{
+		Message:  event.message,
+		Level:    event.level,
+		Metadata: event.metadata,
+	})
+	if err != nil {
 		return
 	}
+	l.writer.Write(data, event.level)
+}
 
-	if level <= MaxLevel {
-		// Build the log message using the string builder pool
-		sb := stringBuilderPool.Get().(*strings.Builder)
+// SetMaxLevel sets the max logging level for logger
+func (l *Logger) SetMaxLevel(level levels.Level) {
+	l.maxLevel = level
+}
 
-		// Get the label and append it to string builder
-		getLabel(level, label, sb)
+// SetFormatter sets the formatter instance for a logger
+func (l *Logger) SetFormatter(formatter formatter.Formatter) {
+	l.formatter = formatter
+}
 
-		message := fmt.Sprintf(format, args...)
-		sb.WriteString(message)
+// SetWriter sets the writer instance for a logger
+func (l *Logger) SetWriter(writer writer.Writer) {
+	l.writer = writer
+}
 
-		if strings.HasSuffix(message, "\n") == false {
-			sb.WriteString("\n")
-		}
+// Event is a log event to be written with data
+type Event struct {
+	logger   *Logger
+	level    levels.Level
+	message  string
+	metadata map[string]string
+}
 
-		mutex.Lock()
-		switch level {
-		case Silent:
-			fmt.Fprint(os.Stdout, sb.String())
-		default:
-			fmt.Fprint(os.Stderr, sb.String())
-		}
-		mutex.Unlock()
+// Lable applies a custom lable on the log event
+func (e *Event) Lable(lable string) *Event {
+	e.metadata["lable"] = lable
+	return e
+}
 
-		sb.Reset()
-		stringBuilderPool.Put(sb)
+// Str adds a string metadata item to the log
+func (e *Event) Str(key, value string) *Event {
+	e.metadata[key] = value
+	return e
+}
+
+// Msg logs a message to the logger
+func (e *Event) Msg(format string) {
+	e.message = format
+	e.logger.Log(e)
+}
+
+// Msgf logs a printf style message to the logger
+func (e *Event) Msgf(format string, args ...interface{}) {
+	e.message = fmt.Sprintf(format, args...)
+	e.logger.Log(e)
+}
+
+// Info writes a info message on the screen with the default lable
+func Info() *Event {
+	level := levels.LevelInfo
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
 	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Infof writes a info message on the screen with the default label
-func Infof(format string, args ...interface{}) {
-	log(Info, "", format, args...)
+// Warning writes a warning message on the screen with the default lable
+func Warning() *Event {
+	level := levels.LevelWarning
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Warningf writes a warning message on the screen with the default label
-func Warningf(format string, args ...interface{}) {
-	log(Warning, "", format, args...)
+// Error writes a error message on the screen with the default lable
+func Error() *Event {
+	level := levels.LevelError
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Errorf writes an error message on the screen with the default label
-func Errorf(format string, args ...interface{}) {
-	log(Error, "", format, args...)
+// Debug writes an error message on the screen with the default lable
+func Debug() *Event {
+	level := levels.LevelDebug
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Debugf writes an error message on the screen with the default label
-func Debugf(format string, args ...interface{}) {
-	log(Debug, "", format, args...)
+// Fatal exits the program if we encounter a fatal error
+func Fatal() *Event {
+	level := levels.LevelFatal
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Verbosef writes a verbose message on the screen with a tabel
-func Verbosef(format string, label string, args ...interface{}) {
-	log(Verbose, label, format, args...)
+// Print prints a string on screen without any extra lables.
+func Print() *Event {
+	level := levels.LevelSilent
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	return event
 }
 
-// Silentf writes a message on the stdout with no label
-func Silentf(format string, args ...interface{}) {
-	log(Silent, "", format, args...)
+// Verbose prints a string only in verbose output mode.
+func Verbose() *Event {
+	level := levels.LevelVerbose
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Fatalf exits the program if we encounter a fatal error
-func Fatalf(format string, args ...interface{}) {
-	log(Fatal, "", format, args...)
-	os.Exit(1)
+// Info writes a info message on the screen with the default lable
+func (l *Logger) Info() *Event {
+	level := levels.LevelInfo
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Printf prints a string on screen without any extra stuff
-func Printf(format string, args ...interface{}) {
-	log(Misc, "", format, args...)
+// Warning writes a warning message on the screen with the default lable
+func (l *Logger) Warning() *Event {
+	level := levels.LevelWarning
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }
 
-// Labelf prints a string on screen with a label interface
-func Labelf(format string, args ...interface{}) {
-	log(Label, "", format, args...)
+// Error writes a error message on the screen with the default lable
+func (l *Logger) Error() *Event {
+	level := levels.LevelError
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
+}
+
+// Debug writes an error message on the screen with the default lable
+func (l *Logger) Debug() *Event {
+	level := levels.LevelDebug
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
+}
+
+// Fatal exits the program if we encounter a fatal error
+func (l *Logger) Fatal() *Event {
+	level := levels.LevelFatal
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
+}
+
+// Print prints a string on screen without any extra lables.
+func (l *Logger) Print() *Event {
+	level := levels.LevelSilent
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	return event
+}
+
+// Verbose prints a string only in verbose output mode.
+func (l *Logger) Verbose() *Event {
+	level := levels.LevelVerbose
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	event.metadata["lable"] = lables[level]
+	return event
 }

@@ -1,10 +1,3 @@
-# gologger
-
-gologger is a very simple logging package to do structured logging in go. 
-
-### Use gologger as a library
-
-```go
 package main
 
 import (
@@ -26,6 +19,3 @@ func main() {
 	gologger.Warning().Str("state", "errored").Str("status", "404").Msg("could not run")
 	gologger.Fatal().Msg("bye bye")
 }
-```
-
-mapCDIR is made with 🖤 by the [projectdiscovery](https://projectdiscovery.io) team.
