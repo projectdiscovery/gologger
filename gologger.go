@@ -24,7 +24,7 @@ var (
 func init() {
 	DefaultLogger = &Logger{}
 	DefaultLogger.SetMaxLevel(levels.LevelInfo)
-	DefaultLogger.SetFormatter(&formatter.CLI{NoUseColors: false})
+	DefaultLogger.SetFormatter(formatter.NewCLI(false))
 	DefaultLogger.SetWriter(writer.NewCLI())
 }
 
