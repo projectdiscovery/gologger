@@ -28,4 +28,4 @@ func main() {
 }
 ```
 
-mapCDIR is made with 🖤 by the [projectdiscovery](https://projectdiscovery.io) team.
+gologger is made with 🖤 by the [projectdiscovery](https://projectdiscovery.io) team.
