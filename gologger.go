@@ -2,6 +2,7 @@ package gologger
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
@@ -49,6 +50,10 @@ func (l *Logger) Log(event *Event) {
 		return
 	}
 	l.writer.Write(data, event.level)
+
+	if event.level == levels.LevelFatal {
+		os.Exit(1)
+	}
 }
 
 // SetMaxLevel sets the max logging level for logger
