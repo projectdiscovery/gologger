@@ -3,6 +3,7 @@ package gologger
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
@@ -41,6 +42,7 @@ func (l *Logger) Log(event *Event) {
 	if event.level > l.maxLevel {
 		return
 	}
+	event.message = strings.TrimSuffix(event.message, "\n")
 	data, err := l.formatter.Format(&formatter.LogEvent{
 		Message:  event.message,
 		Level:    event.level,
@@ -163,9 +165,20 @@ func Fatal() *Event {
 	return event
 }
 
-// Print prints a string on screen without any extra lables.
-func Print() *Event {
+// Silent prints a string on stdout without any extra lables.
+func Silent() *Event {
 	level := levels.LevelSilent
+	event := &Event{
+		logger:   DefaultLogger,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	return event
+}
+
+// Print prints a string on stderr without any extra lables.
+func Print() *Event {
+	level := levels.LevelInfo
 	event := &Event{
 		logger:   DefaultLogger,
 		level:    level,
