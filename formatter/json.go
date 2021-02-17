@@ -20,10 +20,10 @@ func init() {
 // Format formats the log event data into bytes
 func (j *JSON) Format(event *LogEvent) ([]byte, error) {
 	data := make(map[string]interface{})
-	if lable, ok := event.Metadata["lable"]; ok {
-		if lable != "" {
-			data["level"] = lable
-			delete(event.Metadata, "lable")
+	if label, ok := event.Metadata["label"]; ok {
+		if label != "" {
+			data["level"] = label
+			delete(event.Metadata, "label")
 		}
 	}
 	for k, v := range event.Metadata {

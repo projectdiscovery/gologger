@@ -22,18 +22,18 @@ func NewCLI(noUseColors bool) *CLI {
 
 // Format formats the log event data into bytes
 func (c *CLI) Format(event *LogEvent) ([]byte, error) {
-	c.colorizeLable(event)
+	c.colorizeLabel(event)
 
 	buffer := &bytes.Buffer{}
 	buffer.Grow(len(event.Message))
 
-	lable, ok := event.Metadata["lable"]
-	if lable != "" && ok {
+	label, ok := event.Metadata["label"]
+	if label != "" && ok {
 		buffer.WriteRune('[')
-		buffer.WriteString(lable)
+		buffer.WriteString(label)
 		buffer.WriteRune(']')
 		buffer.WriteRune(' ')
-		delete(event.Metadata, "lable")
+		delete(event.Metadata, "label")
 	}
 	buffer.WriteString(event.Message)
 
@@ -55,24 +55,24 @@ func (c *CLI) colorizeKey(key string) string {
 	return c.aurora.Bold(key).String()
 }
 
-// colorizeLable colorizes the lables if their exists one and colors are enabled
-func (c *CLI) colorizeLable(event *LogEvent) {
-	lable := event.Metadata["lable"]
-	if lable == "" || c.NoUseColors {
+// colorizeLabel colorizes the labels if their exists one and colors are enabled
+func (c *CLI) colorizeLabel(event *LogEvent) {
+	label := event.Metadata["label"]
+	if label == "" || c.NoUseColors {
 		return
 	}
 	switch event.Level {
 	case levels.LevelSilent:
 		return
 	case levels.LevelInfo, levels.LevelVerbose:
-		event.Metadata["lable"] = c.aurora.Blue(lable).String()
+		event.Metadata["label"] = c.aurora.Blue(label).String()
 	case levels.LevelFatal:
-		event.Metadata["lable"] = c.aurora.Bold(aurora.Red(lable)).String()
+		event.Metadata["label"] = c.aurora.Bold(aurora.Red(label)).String()
 	case levels.LevelError:
-		event.Metadata["lable"] = c.aurora.Red(lable).String()
+		event.Metadata["label"] = c.aurora.Red(label).String()
 	case levels.LevelDebug:
-		event.Metadata["lable"] = c.aurora.Magenta(lable).String()
+		event.Metadata["label"] = c.aurora.Magenta(label).String()
 	case levels.LevelWarning:
-		event.Metadata["lable"] = c.aurora.Yellow(lable).String()
+		event.Metadata["label"] = c.aurora.Yellow(label).String()
 	}
 }
