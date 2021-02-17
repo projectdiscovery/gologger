@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	lables = map[levels.Level]string{
+	labels = map[levels.Level]string{
 		levels.LevelFatal:   "FTL",
 		levels.LevelError:   "ERR",
 		levels.LevelInfo:    "INF",
@@ -81,9 +81,9 @@ type Event struct {
 	metadata map[string]string
 }
 
-// Lable applies a custom lable on the log event
-func (e *Event) Lable(lable string) *Event {
-	e.metadata["lable"] = lable
+// Label applies a custom label on the log event
+func (e *Event) Label(label string) *Event {
+	e.metadata["label"] = label
 	return e
 }
 
@@ -105,7 +105,7 @@ func (e *Event) Msgf(format string, args ...interface{}) {
 	e.logger.Log(e)
 }
 
-// Info writes a info message on the screen with the default lable
+// Info writes a info message on the screen with the default label
 func Info() *Event {
 	level := levels.LevelInfo
 	event := &Event{
@@ -113,11 +113,11 @@ func Info() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Warning writes a warning message on the screen with the default lable
+// Warning writes a warning message on the screen with the default label
 func Warning() *Event {
 	level := levels.LevelWarning
 	event := &Event{
@@ -125,11 +125,11 @@ func Warning() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Error writes a error message on the screen with the default lable
+// Error writes a error message on the screen with the default label
 func Error() *Event {
 	level := levels.LevelError
 	event := &Event{
@@ -137,11 +137,11 @@ func Error() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Debug writes an error message on the screen with the default lable
+// Debug writes an error message on the screen with the default label
 func Debug() *Event {
 	level := levels.LevelDebug
 	event := &Event{
@@ -149,7 +149,7 @@ func Debug() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
@@ -161,11 +161,11 @@ func Fatal() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Silent prints a string on stdout without any extra lables.
+// Silent prints a string on stdout without any extra labels.
 func Silent() *Event {
 	level := levels.LevelSilent
 	event := &Event{
@@ -176,7 +176,7 @@ func Silent() *Event {
 	return event
 }
 
-// Print prints a string on stderr without any extra lables.
+// Print prints a string on stderr without any extra labels.
 func Print() *Event {
 	level := levels.LevelInfo
 	event := &Event{
@@ -195,11 +195,11 @@ func Verbose() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Info writes a info message on the screen with the default lable
+// Info writes a info message on the screen with the default label
 func (l *Logger) Info() *Event {
 	level := levels.LevelInfo
 	event := &Event{
@@ -207,11 +207,11 @@ func (l *Logger) Info() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Warning writes a warning message on the screen with the default lable
+// Warning writes a warning message on the screen with the default label
 func (l *Logger) Warning() *Event {
 	level := levels.LevelWarning
 	event := &Event{
@@ -219,11 +219,11 @@ func (l *Logger) Warning() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Error writes a error message on the screen with the default lable
+// Error writes a error message on the screen with the default label
 func (l *Logger) Error() *Event {
 	level := levels.LevelError
 	event := &Event{
@@ -231,11 +231,11 @@ func (l *Logger) Error() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Debug writes an error message on the screen with the default lable
+// Debug writes an error message on the screen with the default label
 func (l *Logger) Debug() *Event {
 	level := levels.LevelDebug
 	event := &Event{
@@ -243,7 +243,7 @@ func (l *Logger) Debug() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
@@ -255,11 +255,11 @@ func (l *Logger) Fatal() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
 
-// Print prints a string on screen without any extra lables.
+// Print prints a string on screen without any extra labels.
 func (l *Logger) Print() *Event {
 	level := levels.LevelSilent
 	event := &Event{
@@ -278,6 +278,6 @@ func (l *Logger) Verbose() *Event {
 		level:    level,
 		metadata: make(map[string]string),
 	}
-	event.metadata["lable"] = lables[level]
+	event.metadata["label"] = labels[level]
 	return event
 }
