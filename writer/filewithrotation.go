@@ -1,9 +1,11 @@
 package writer
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -11,18 +13,22 @@ import (
 
 	"github.com/mholt/archiver"
 	"github.com/projectdiscovery/gologger/levels"
+	"gopkg.in/djherbis/times.v1"
 )
 
 func init() {
 	// Set default dir to current directory + /log
 	if dir, err := os.Getwd(); err == nil {
-		DefaultFileWithRotationOptions.Location = path.Join(dir, "logs")
+		DefaultFileWithRotationOptions.Location = filepath.Join(dir, "logs")
 	}
 
-	DefaultFileWithRotationOptions.RotationInterval = time.Hour
+	// DefaultFileWithRotationOptions.rotationcheck = time.Duration(1 * time.Minute)
+	DefaultFileWithRotationOptions.rotationcheck = time.Duration(5 * time.Second)
 
 	// Current logfile name is "processname.log"
 	DefaultFileWithRotationOptions.FileName = fmt.Sprintf("%s.log", filepath.Base(os.Args[0]))
+	DefaultFileWithRotationOptions.BackupTimeFormat = "2006-01-02T15-04-05"
+	DefaultFileWithRotationOptions.ArchiveFormat = "gz"
 }
 
 // FileWithRotation is a concurrent output writer to a file with rotation.
@@ -35,9 +41,13 @@ type FileWithRotation struct {
 type FileWithRotationOptions struct {
 	Location         string
 	Rotate           bool
+	rotationcheck    time.Duration
 	RotationInterval time.Duration
 	FileName         string
 	Compress         bool
+	MaxSize          int
+	BackupTimeFormat string
+	ArchiveFormat    string
 }
 
 var DefaultFileWithRotationOptions FileWithRotationOptions
@@ -50,7 +60,7 @@ func NewFileWithRotation(options *FileWithRotationOptions) (*FileWithRotation, e
 	}
 	// set log rotator monitor
 	if fwr.options.Rotate {
-		go scheduler(time.NewTicker(options.RotationInterval), fwr.checkAndRotate)
+		go scheduler(time.NewTicker(options.rotationcheck), fwr.checkAndRotate)
 	}
 
 	err := os.MkdirAll(fwr.options.Location, 655)
@@ -82,21 +92,30 @@ func (w *FileWithRotation) Write(data []byte, level levels.Level) {
 }
 
 func (w *FileWithRotation) checkAndRotate() {
-	// extract time from filename
-	ts := strings.TrimSuffix(strings.TrimPrefix(w.options.FileName, filepath.Base(os.Args[0])+"-"), ".log")
-	t, err := time.Parse(backupTimeFormat, ts)
+	// check size
+	currentFileSizeMb, err := w.logFile.Stat()
 	if err != nil {
 		return
 	}
 
-	// if current day is different from current one of log rotate
-	if !dateEqual(t, time.Now()) {
+	filename := filepath.Join(w.options.Location, w.options.FileName)
+	filebirthdate, err := getCreationTime(filename)
+	if err != nil {
+		return
+	}
+
+	filesizeCheck := w.options.MaxSize > 0 && currentFileSizeMb.Size() >= int64(w.options.MaxSize*1024*1024)
+	filebirthdateCheck := w.options.RotationInterval > 0 && filebirthdate.Add(w.options.RotationInterval).Before(time.Now())
+
+	// Rotate if:
+	// - Size excedeed
+	// - File max age excedeed
+	if filesizeCheck || filebirthdateCheck {
+		w.mutex.Lock()
 		w.Close()
-		// start asyncronous rotation
-		if w.options.Compress {
-			w.compressLogs()
-		}
+		w.compressLogs()
 		w.newLogger()
+		w.mutex.Unlock()
 	}
 }
 
@@ -107,27 +126,14 @@ func (w *FileWithRotation) Close() {
 }
 
 func (w *FileWithRotation) newLogger() (err error) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	// update file name if necessary
-	if w.options.Rotate {
-		w.buildRotateName()
-	}
-
-	logFile, err := w.CreateFile(w.options.FileName)
+	filename := filepath.Join(w.options.Location, w.options.FileName)
+	logFile, err := w.CreateFile(filename)
 	if err != nil {
 		return err
 	}
 	w.logFile = logFile
 
 	return nil
-}
-
-func (w *FileWithRotation) buildRotateName() {
-	timestamp := time.Now().Format(backupTimeFormat)
-	fullPath := path.Join(w.options.Location, fmt.Sprintf("%s-%s.log", filepath.Base(os.Args[0]), timestamp))
-	w.options.FileName = fullPath
 }
 
 func (w *FileWithRotation) CreateFile(filename string) (*os.File, error) {
@@ -143,20 +149,23 @@ func (w *FileWithRotation) CreateFile(filename string) (*os.File, error) {
 
 func (w *FileWithRotation) compressLogs() {
 	// snapshot current filename log
-	filename := w.options.FileName
-	// start asyncronous compressing
-	go func(filename string) {
-		err := archiver.CompressFile(filename, filename+".gz")
-		if err == nil {
-			// remove the original file
-			os.RemoveAll(filename)
-		}
-	}(filename)
-}
+	filename := filepath.Join(w.options.Location, w.options.FileName)
+	fileExt := filepath.Ext(filename)
+	filenameBase := strings.TrimSuffix(filename, fileExt)
+	tmpFilename := filenameBase + "." + time.Now().Format(w.options.BackupTimeFormat) + fileExt
+	os.Rename(filename, tmpFilename)
 
-const (
-	backupTimeFormat = "2006-01-02"
-)
+	if w.options.Compress {
+		// start asyncronous compressing
+		go func(filename string) {
+			err := archiver.CompressFile(tmpFilename, filename+"."+w.options.ArchiveFormat)
+			if err == nil {
+				// remove the original file
+				os.RemoveAll(tmpFilename)
+			}
+		}(tmpFilename)
+	}
+}
 
 func scheduler(tick *time.Ticker, f func()) {
 	for range tick.C {
@@ -172,4 +181,25 @@ func dateEqual(date1, date2 time.Time) bool {
 
 func dateHourEqual(date1, date2 time.Time) bool {
 	return dateEqual(date1, date2) && date1.Hour() == date2.Hour()
+}
+
+func getCreationTime(filename string) (*time.Time, error) {
+	t, err := times.Stat(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if t.HasBirthTime() {
+		birthTime := t.BirthTime()
+		return &birthTime, nil
+	}
+
+	return nil, errors.New("No creation time")
+}
+
+func randStr(len int) string {
+	buff := make([]byte, len)
+	rand.Read(buff)
+	str := base64.StdEncoding.EncodeToString(buff)
+	return str[:len]
 }
