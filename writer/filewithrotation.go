@@ -1,3 +1,5 @@
+// Inspired by https://github.com/natefinch/lumberjack
+
 package writer
 
 import (
@@ -17,7 +19,7 @@ import (
 )
 
 func init() {
-	// Set default dir to current directory + /log
+	// Set default dir to current directory + /logs
 	if dir, err := os.Getwd(); err == nil {
 		DefaultFileWithRotationOptions.Location = filepath.Join(dir, "logs")
 	}
@@ -63,12 +65,12 @@ func NewFileWithRotation(options *FileWithRotationOptions) (*FileWithRotation, e
 		go scheduler(time.NewTicker(options.rotationcheck), fwr.checkAndRotate)
 	}
 
-	err := os.MkdirAll(fwr.options.Location, 655)
+	err := os.MkdirAll(fwr.options.Location, 0644)
 	if err != nil {
 		return nil, err
 	}
 
-	err = fwr.newLogger()
+	err = fwr.newLoggerSync()
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +127,13 @@ func (w *FileWithRotation) Close() {
 	w.logFile.Close()
 }
 
+func (w *FileWithRotation) newLoggerSync() (err error) {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	return w.newLogger()
+}
+
 func (w *FileWithRotation) newLogger() (err error) {
 	filename := filepath.Join(w.options.Location, w.options.FileName)
 	logFile, err := w.CreateFile(filename)
@@ -137,12 +146,9 @@ func (w *FileWithRotation) newLogger() (err error) {
 }
 
 func (w *FileWithRotation) CreateFile(filename string) (*os.File, error) {
-	f, err := os.Open(filename)
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
-		f, err = os.Create(filename)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	return f, nil
 }
