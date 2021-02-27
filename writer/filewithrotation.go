@@ -24,8 +24,7 @@ func init() {
 		DefaultFileWithRotationOptions.Location = filepath.Join(dir, "logs")
 	}
 
-	// DefaultFileWithRotationOptions.rotationcheck = time.Duration(1 * time.Minute)
-	DefaultFileWithRotationOptions.rotationcheck = time.Duration(5 * time.Second)
+	DefaultFileWithRotationOptions.rotationcheck = time.Duration(10 * time.Second)
 
 	// Current logfile name is "processname.log"
 	DefaultFileWithRotationOptions.FileName = fmt.Sprintf("%s.log", filepath.Base(os.Args[0]))
@@ -50,6 +49,9 @@ type FileWithRotationOptions struct {
 	MaxSize          int
 	BackupTimeFormat string
 	ArchiveFormat    string
+	// Helpers
+	RotateEachHour bool
+	RotateEachDay  bool
 }
 
 var DefaultFileWithRotationOptions FileWithRotationOptions
@@ -94,6 +96,7 @@ func (w *FileWithRotation) Write(data []byte, level levels.Level) {
 }
 
 func (w *FileWithRotation) checkAndRotate() {
+	timeNow := time.Now()
 	// check size
 	currentFileSizeMb, err := w.logFile.Stat()
 	if err != nil {
@@ -107,15 +110,19 @@ func (w *FileWithRotation) checkAndRotate() {
 	}
 
 	filesizeCheck := w.options.MaxSize > 0 && currentFileSizeMb.Size() >= int64(w.options.MaxSize*1024*1024)
-	filebirthdateCheck := w.options.RotationInterval > 0 && filebirthdate.Add(w.options.RotationInterval).Before(time.Now())
+	filebirthdateCheck := w.options.RotationInterval > 0 && filebirthdate.Add(w.options.RotationInterval).Before(timeNow)
+	rotateEachHourCheck := w.options.RotateEachHour && filebirthdate.Day() == timeNow.Day() && filebirthdate.Hour() != timeNow.Hour()
+	rotateEachDayCheck := w.options.RotateEachHour && filebirthdate.Day() != timeNow.Day()
 
 	// Rotate if:
 	// - Size excedeed
 	// - File max age excedeed
-	if filesizeCheck || filebirthdateCheck {
+	// - RotateEachHour set and condition met
+	// - RotateEachDay set and condition met
+	if filesizeCheck || filebirthdateCheck || rotateEachHourCheck || rotateEachDayCheck {
 		w.mutex.Lock()
 		w.Close()
-		w.compressLogs()
+		w.renameAndCompressLogs()
 		w.newLogger()
 		w.mutex.Unlock()
 	}
@@ -153,7 +160,7 @@ func (w *FileWithRotation) CreateFile(filename string) (*os.File, error) {
 	return f, nil
 }
 
-func (w *FileWithRotation) compressLogs() {
+func (w *FileWithRotation) renameAndCompressLogs() {
 	// snapshot current filename log
 	filename := filepath.Join(w.options.Location, w.options.FileName)
 	fileExt := filepath.Ext(filename)
