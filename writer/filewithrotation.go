@@ -80,7 +80,7 @@ func NewFileWithRotation(options *FileWithRotationOptions) (*FileWithRotation, e
 	return fwr, nil
 }
 
-// WriteString writes an output to the underlying file
+// Write writes an output to the underlying file
 func (w *FileWithRotation) Write(data []byte, level levels.Level) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
