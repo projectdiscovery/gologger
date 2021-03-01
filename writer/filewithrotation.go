@@ -34,9 +34,10 @@ func init() {
 
 // FileWithRotation is a concurrent output writer to a file with rotation.
 type FileWithRotation struct {
-	options *FileWithRotationOptions
-	mutex   *sync.Mutex
-	logFile *os.File
+	options     *FileWithRotationOptions
+	mutex       *sync.Mutex
+	logFile     *os.File
+	logfileTime time.Time
 }
 
 type FileWithRotationOptions struct {
@@ -67,7 +68,7 @@ func NewFileWithRotation(options *FileWithRotationOptions) (*FileWithRotation, e
 		go scheduler(time.NewTicker(options.rotationcheck), fwr.checkAndRotate)
 	}
 
-	err := os.MkdirAll(fwr.options.Location, 0644)
+	err := os.MkdirAll(fwr.options.Location, 0755)
 	if err != nil {
 		return nil, err
 	}
@@ -103,23 +104,17 @@ func (w *FileWithRotation) checkAndRotate() {
 		return
 	}
 
-	filename := filepath.Join(w.options.Location, w.options.FileName)
-	filebirthdate, err := getCreationTime(filename)
-	if err != nil {
-		return
-	}
-
 	filesizeCheck := w.options.MaxSize > 0 && currentFileSizeMb.Size() >= int64(w.options.MaxSize*1024*1024)
-	filebirthdateCheck := w.options.RotationInterval > 0 && filebirthdate.Add(w.options.RotationInterval).Before(timeNow)
-	rotateEachHourCheck := w.options.RotateEachHour && filebirthdate.Day() == timeNow.Day() && filebirthdate.Hour() != timeNow.Hour()
-	rotateEachDayCheck := w.options.RotateEachHour && filebirthdate.Day() != timeNow.Day()
+	filechangedateCheck := w.options.RotationInterval > 0 && w.logfileTime.Add(w.options.RotationInterval).Before(timeNow)
+	rotateEachHourCheck := w.options.RotateEachHour && w.logfileTime.Day() == timeNow.Day() && w.logfileTime.Hour() != timeNow.Hour()
+	rotateEachDayCheck := w.options.RotateEachDay && w.logfileTime.Day() != timeNow.Day()
 
 	// Rotate if:
 	// - Size excedeed
 	// - File max age excedeed
 	// - RotateEachHour set and condition met
 	// - RotateEachDay set and condition met
-	if filesizeCheck || filebirthdateCheck || rotateEachHourCheck || rotateEachDayCheck {
+	if filesizeCheck || filechangedateCheck || rotateEachHourCheck || rotateEachDayCheck {
 		w.mutex.Lock()
 		w.Close()
 		w.renameAndCompressLogs()
@@ -149,11 +144,16 @@ func (w *FileWithRotation) newLogger() (err error) {
 	}
 	w.logFile = logFile
 
+	w.logfileTime, err = getChangeTime(filename)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (w *FileWithRotation) CreateFile(filename string) (*os.File, error) {
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE, 0644)
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0755)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,13 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 	filename := filepath.Join(w.options.Location, w.options.FileName)
 	fileExt := filepath.Ext(filename)
 	filenameBase := strings.TrimSuffix(filename, fileExt)
-	tmpFilename := filenameBase + "." + time.Now().Format(w.options.BackupTimeFormat) + fileExt
+	timeToSave := time.Now()
+	if w.options.RotateEachHour {
+		timeToSave = timeToSave.Truncate(1 * time.Hour)
+	} else if w.options.RotateEachDay {
+		timeToSave = timeToSave.Truncate(24 * time.Hour)
+	}
+	tmpFilename := filenameBase + "." + timeToSave.Format(w.options.BackupTimeFormat) + fileExt
 	os.Rename(filename, tmpFilename)
 
 	if w.options.Compress {
@@ -196,18 +202,18 @@ func dateHourEqual(date1, date2 time.Time) bool {
 	return dateEqual(date1, date2) && date1.Hour() == date2.Hour()
 }
 
-func getCreationTime(filename string) (*time.Time, error) {
+func getChangeTime(filename string) (time.Time, error) {
+	timeNow := time.Now()
 	t, err := times.Stat(filename)
 	if err != nil {
-		return nil, err
+		return timeNow, err
 	}
 
-	if t.HasBirthTime() {
-		birthTime := t.BirthTime()
-		return &birthTime, nil
+	if t.HasChangeTime() {
+		return t.ChangeTime(), nil
 	}
 
-	return nil, errors.New("No creation time")
+	return timeNow, errors.New("No change time")
 }
 
 func randStr(len int) string {
