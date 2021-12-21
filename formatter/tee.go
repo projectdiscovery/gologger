@@ -29,7 +29,7 @@ func (tee *Tee) Format(event *LogEvent) (bts []byte, err error) {
 	}
 	label, _ := event.Metadata["label"]
 
-	bts, err = tee.Format(event)
+	bts, err = tee.Formatter.Format(event)
 	// the format delete the label key from Metadat - if we want colors we need to add it again
 	if label != "" {
 		event.Metadata["label"] = label
