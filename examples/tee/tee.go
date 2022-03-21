@@ -1,22 +1,26 @@
-# gologger
-
-gologger is a very simple logging package to do structured logging in go. 
-
-### Use gologger as a library
-
-```go
 package main
 
 import (
+	"os"
 	"strconv"
 
 	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/gologger/levels"
+	"github.com/projectdiscovery/gologger/formatter"
 )
 
 func main() {
-	gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
-	//	gologger.DefaultLogger.SetFormatter(&formatter.JSON{})
+	fname := "gologger.json"
+
+	f, err := os.OpenFile(fname, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	teeformatter := formatter.NewTee(formatter.NewCLI(false), f)
+
+	gologger.DefaultLogger.SetFormatter(teeformatter)
+
+	// Do iterations
 	gologger.Print().Msgf("\tgologger: sample test\t\n")
 	gologger.Info().Str("user", "pdteam").Msg("running simulation program")
 	for i := 0; i < 10; i++ {
@@ -26,6 +30,3 @@ func main() {
 	gologger.Warning().Str("state", "errored").Str("status", "404").Msg("could not run")
 	gologger.Fatal().Msg("bye bye")
 }
-```
-
-gologger is made with 🖤 by the [projectdiscovery](https://projectdiscovery.io) team.
