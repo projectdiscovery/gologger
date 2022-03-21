@@ -4,6 +4,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/projectdiscovery/gologger/levels"
 )
 
 // JSON is a formatter for outputting json logs
@@ -28,6 +29,10 @@ func (j *JSON) Format(event *LogEvent) ([]byte, error) {
 	}
 	for k, v := range event.Metadata {
 		data[k] = v
+	}
+	switch event.Level {
+	case levels.LevelWarning, levels.LevelError, levels.LevelFatal:
+		data["stacktrace"] = takeStacktrace(1)
 	}
 	data["msg"] = event.Message
 	data["timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05-0700")
