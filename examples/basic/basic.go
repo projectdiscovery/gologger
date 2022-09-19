@@ -16,6 +16,7 @@ func main() {
 		gologger.Info().Str("count", strconv.Itoa(i)).Msg("running simulation step...")
 	}
 	gologger.Debug().Str("state", "running").Msg("planner running")
+	gologger.Debug().TimeStamp().Str("state", "running").Msg("with timestamp event")
 	gologger.Warning().Str("state", "errored").Str("status", "404").Msg("could not run")
 	gologger.Fatal().Msg("bye bye")
 }

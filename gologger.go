@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
@@ -84,6 +85,12 @@ type Event struct {
 // Label applies a custom label on the log event
 func (e *Event) Label(label string) *Event {
 	e.metadata["label"] = label
+	return e
+}
+
+// TimeStamp adds timestamp to the log event
+func (e *Event) TimeStamp() *Event {
+	e.metadata["timestamp"] = time.Now().Format(time.RFC3339)
 	return e
 }
 
