@@ -91,7 +91,11 @@ func (w *FileWithRotation) Write(data []byte, level levels.Level) {
 			return
 		}
 
-		w.logFile.Write([]byte("\n"))
+		_, err = w.logFile.Write([]byte("\n"))
+		if err != nil {
+			return
+		}
+
 	default:
 		_, err := w.logFile.Write(data)
 		if err != nil {
