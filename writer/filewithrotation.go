@@ -3,8 +3,6 @@
 package writer
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -88,11 +86,25 @@ func (w *FileWithRotation) Write(data []byte, level levels.Level) {
 
 	switch level {
 	case levels.LevelSilent:
-		w.logFile.Write(data)
-		w.logFile.Write([]byte("\n"))
+		_, err := w.logFile.Write(data)
+		if err != nil {
+			return
+		}
+
+		_, err = w.logFile.Write([]byte("\n"))
+		if err != nil {
+			return
+		}
+
 	default:
-		w.logFile.Write(data)
-		w.logFile.Write([]byte("\n"))
+		_, err := w.logFile.Write(data)
+		if err != nil {
+			return
+		}
+		_, err =w.logFile.Write([]byte("\n"))
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -118,14 +130,14 @@ func (w *FileWithRotation) checkAndRotate() {
 		w.mutex.Lock()
 		w.Close()
 		w.renameAndCompressLogs()
-		w.newLogger()
+		_ =w.newLogger()
 		w.mutex.Unlock()
 	}
 }
 
 // Close and flushes the logger
 func (w *FileWithRotation) Close() {
-	w.logFile.Sync()
+	_ = w.logFile.Sync()
 	w.logFile.Close()
 }
 
@@ -172,7 +184,7 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 		timeToSave = timeToSave.Truncate(24 * time.Hour)
 	}
 	tmpFilename := filenameBase + "." + timeToSave.Format(w.options.BackupTimeFormat) + fileExt
-	os.Rename(filename, tmpFilename)
+	_ = os.Rename(filename, tmpFilename)
 
 	if w.options.Compress {
 		// start asyncronous compressing
@@ -192,15 +204,6 @@ func scheduler(tick *time.Ticker, f func()) {
 	}
 }
 
-func dateEqual(date1, date2 time.Time) bool {
-	y1, m1, d1 := date1.Date()
-	y2, m2, d2 := date2.Date()
-	return y1 == y2 && m1 == m2 && d1 == d2
-}
-
-func dateHourEqual(date1, date2 time.Time) bool {
-	return dateEqual(date1, date2) && date1.Hour() == date2.Hour()
-}
 
 func getChangeTime(filename string) (time.Time, error) {
 	timeNow := time.Now()
@@ -216,9 +219,3 @@ func getChangeTime(filename string) (time.Time, error) {
 	return timeNow, errors.New("No change time")
 }
 
-func randStr(len int) string {
-	buff := make([]byte, len)
-	rand.Read(buff)
-	str := base64.StdEncoding.EncodeToString(buff)
-	return str[:len]
-}
