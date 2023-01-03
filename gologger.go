@@ -22,7 +22,6 @@ var (
 	}
 	// DefaultLogger is the default logging instance
 	DefaultLogger *Logger
-	addTimestamp  bool
 )
 
 func init() {
@@ -34,9 +33,10 @@ func init() {
 
 // Logger is a logger for logging structured data in a beautfiul and fast manner.
 type Logger struct {
-	writer    writer.Writer
-	maxLevel  levels.Level
-	formatter formatter.Formatter
+	writer       writer.Writer
+	maxLevel     levels.Level
+	formatter    formatter.Formatter
+	addTimestamp bool
 }
 
 // Log logs a message to a logger instance
@@ -75,6 +75,12 @@ func (l *Logger) SetWriter(writer writer.Writer) {
 	l.writer = writer
 }
 
+// SetTimestamp sets a global flag indicating whether or not to add timestamps to debug logs.
+// If the flag is set to true, timestamps will be added to debug logs.
+func SetTimestamp(timestamp bool) {
+	DefaultLogger.addTimestamp = timestamp
+}
+
 // Event is a log event to be written with data
 type Event struct {
 	logger   *Logger
@@ -93,12 +99,6 @@ func (e *Event) Label(label string) *Event {
 func (e *Event) TimeStamp() *Event {
 	e.metadata["timestamp"] = time.Now().Format(time.RFC3339)
 	return e
-}
-
-// SetTimestamp sets a global flag indicating whether or not to add timestamps to debug logs.
-// If the flag is set to true, timestamps will be added to debug logs.
-func SetTimestamp(timestamp bool) {
-	addTimestamp = timestamp
 }
 
 // Str adds a string metadata item to the log
@@ -175,7 +175,7 @@ func Debug() *Event {
 	}
 	event.metadata["label"] = labels[level]
 
-	if addTimestamp {
+	if DefaultLogger.addTimestamp {
 		event.TimeStamp()
 	}
 
