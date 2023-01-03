@@ -75,12 +75,6 @@ func (l *Logger) SetWriter(writer writer.Writer) {
 	l.writer = writer
 }
 
-// SetTimestamp sets a global flag indicating whether or not to add timestamps to debug logs.
-// If the flag is set to true, timestamps will be added to debug logs.
-func SetTimestamp(timestamp bool) {
-	DefaultLogger.addTimestamp = timestamp
-}
-
 // Event is a log event to be written with data
 type Event struct {
 	logger   *Logger
@@ -309,6 +303,12 @@ func (l *Logger) Verbose() *Event {
 	}
 	event.metadata["label"] = labels[level]
 	return event
+}
+
+// SetTimestamp sets a global flag indicating whether or not to add timestamps to debug logs.
+// If the flag is set to true, timestamps will be added to debug logs.
+func (l *Logger) SetTimestamp(timestamp bool) {
+	DefaultLogger.addTimestamp = timestamp
 }
 
 func isCurrentLevelEnabled(e *Event) bool {
