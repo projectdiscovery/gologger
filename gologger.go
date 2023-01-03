@@ -22,6 +22,7 @@ var (
 	}
 	// DefaultLogger is the default logging instance
 	DefaultLogger *Logger
+	addTimestamp  bool
 )
 
 func init() {
@@ -92,6 +93,12 @@ func (e *Event) Label(label string) *Event {
 func (e *Event) TimeStamp() *Event {
 	e.metadata["timestamp"] = time.Now().Format(time.RFC3339)
 	return e
+}
+
+// SetTimestamp sets a global flag indicating whether or not to add timestamps to debug logs.
+// If the flag is set to true, timestamps will be added to debug logs.
+func SetTimestamp(timestamp bool) {
+	addTimestamp = timestamp
 }
 
 // Str adds a string metadata item to the log
@@ -167,6 +174,11 @@ func Debug() *Event {
 		metadata: make(map[string]string),
 	}
 	event.metadata["label"] = labels[level]
+
+	if addTimestamp {
+		event.TimeStamp()
+	}
+
 	return event
 }
 
