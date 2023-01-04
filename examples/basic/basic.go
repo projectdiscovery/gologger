@@ -18,5 +18,11 @@ func main() {
 	gologger.Debug().Str("state", "running").Msg("planner running")
 	gologger.Debug().TimeStamp().Str("state", "running").Msg("with timestamp event")
 	gologger.Warning().Str("state", "errored").Str("status", "404").Msg("could not run")
+
+	// with timestamp
+	gologger.DefaultLogger.SetTimestamp(true, levels.LevelDebug)
+	gologger.Debug().Msg("with automatic timestamp")
+	gologger.Info().Msg("without automatic timestamp")
+
 	gologger.Fatal().Msg("bye bye")
 }
