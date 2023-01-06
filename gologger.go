@@ -188,7 +188,6 @@ func Fatal() *Event {
 // Silent prints a string on stdout without any extra labels.
 func Silent() *Event {
 	event := newDefaultEventWithLevel(levels.LevelSilent)
-	event.setLevelMetadata(levels.LevelSilent)
 	return event
 }
 
