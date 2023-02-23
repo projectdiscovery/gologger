@@ -3,6 +3,7 @@ module github.com/projectdiscovery/gologger
 go 1.14
 
 require (
+	github.com/djherbis/times v1.5.0
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/frankban/quicktest v1.11.3 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
@@ -17,6 +18,5 @@ require (
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/djherbis/times.v1 v1.3.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
