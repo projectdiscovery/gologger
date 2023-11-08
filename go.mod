@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/json-iterator/go v1.1.12
 	github.com/logrusorgru/aurora v2.0.3+incompatible
-	github.com/mholt/archiver v3.1.1+incompatible
+	github.com/mholt/archiver@v3.3.2
 	gopkg.in/djherbis/times.v1 v1.3.0
 )
 
