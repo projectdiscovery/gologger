@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mholt/archiver"
+	"github.com/mholt/archiver/v3"
 	"github.com/projectdiscovery/gologger/levels"
 	"gopkg.in/djherbis/times.v1"
 )
@@ -101,7 +101,7 @@ func (w *FileWithRotation) Write(data []byte, level levels.Level) {
 		if err != nil {
 			return
 		}
-		_, err =w.logFile.Write([]byte("\n"))
+		_, err = w.logFile.Write([]byte("\n"))
 		if err != nil {
 			return
 		}
@@ -130,7 +130,7 @@ func (w *FileWithRotation) checkAndRotate() {
 		w.mutex.Lock()
 		w.Close()
 		w.renameAndCompressLogs()
-		_ =w.newLogger()
+		_ = w.newLogger()
 		w.mutex.Unlock()
 	}
 }
@@ -204,7 +204,6 @@ func scheduler(tick *time.Ticker, f func()) {
 	}
 }
 
-
 func getChangeTime(filename string) (time.Time, error) {
 	timeNow := time.Now()
 	t, err := times.Stat(filename)
@@ -218,4 +217,3 @@ func getChangeTime(filename string) (time.Time, error) {
 
 	return timeNow, errors.New("No change time")
 }
-
