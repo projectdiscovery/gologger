@@ -1,6 +1,6 @@
 module github.com/projectdiscovery/gologger
 
-go 1.19
+go 1.21
 
 require (
 	github.com/json-iterator/go v1.1.12
