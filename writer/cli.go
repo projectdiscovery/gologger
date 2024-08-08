@@ -30,6 +30,6 @@ func (w *CLI) Write(data []byte, level levels.Level) {
 		os.Stdout.WriteString(NewLine)
 	default:
 		os.Stderr.Write(data)
-		os.Stdout.WriteString(NewLine)
+		os.Stderr.WriteString(NewLine)
 	}
 }
