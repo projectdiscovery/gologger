@@ -5,13 +5,14 @@ package writer
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/mholt/archiver/v3"
+	"github.com/mholt/archives"
 	"github.com/projectdiscovery/gologger/levels"
 	"gopkg.in/djherbis/times.v1"
 )
@@ -22,12 +23,12 @@ func init() {
 		DefaultFileWithRotationOptions.Location = filepath.Join(dir, "logs")
 	}
 
-	DefaultFileWithRotationOptions.rotationcheck = time.Duration(10 * time.Second)
+	DefaultFileWithRotationOptions.rotationcheck = 10 * time.Second
 
 	// Current logfile name is "processname.log"
 	DefaultFileWithRotationOptions.FileName = fmt.Sprintf("%s.log", filepath.Base(os.Args[0]))
 	DefaultFileWithRotationOptions.BackupTimeFormat = "2006-01-02T15-04-05"
-	DefaultFileWithRotationOptions.ArchiveFormat = "gz"
+	DefaultFileWithRotationOptions.ArchiveFormat = archives.Gz{}
 }
 
 // FileWithRotation is a concurrent output writer to a file with rotation.
@@ -47,7 +48,7 @@ type FileWithRotationOptions struct {
 	Compress         bool
 	MaxSize          int
 	BackupTimeFormat string
-	ArchiveFormat    string
+	ArchiveFormat    archives.Compression
 	// Helpers
 	RotateEachHour bool
 	RotateEachDay  bool
@@ -189,11 +190,38 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 	if w.options.Compress {
 		// start asyncronous compressing
 		go func(filename string) {
-			err := archiver.CompressFile(tmpFilename, filename+"."+w.options.ArchiveFormat)
-			if err == nil {
-				// remove the original file
-				os.RemoveAll(tmpFilename)
+			var err error
+
+			in, err := os.Open(filename)
+			if err != nil {
+				return
 			}
+			defer in.Close()
+
+			out, err := os.Create(filename + w.options.ArchiveFormat.Extension())
+			if err != nil {
+				return
+			}
+			defer out.Close()
+
+			writer, err := w.options.ArchiveFormat.OpenWriter(out)
+			if err != nil {
+				return
+			}
+
+			defer func() { // best effort cleanup in case of failure
+				if err != nil {
+					_ = os.RemoveAll(out.Name())
+				}
+			}()
+			defer writer.Close()
+
+			_, err = io.Copy(writer, in)
+			if err != nil {
+				return
+			}
+
+			_ = os.RemoveAll(tmpFilename)
 		}(tmpFilename)
 	}
 }
