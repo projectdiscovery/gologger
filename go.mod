@@ -23,3 +23,7 @@ require (
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 )
+
+// TODO: This could be removed after https://github.com/mholt/archiver/pull/396 is merged.
+// This replace includes a resolution for https://github.com/advisories/GHSA-rhh4-rh7c-7r5v.
+replace github.com/mholt/archiver/v3 => github.com/anchore/archiver/v3 v3.5.2
