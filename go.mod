@@ -6,7 +6,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mholt/archives v0.1.0
-	github.com/projectdiscovery/utils v0.4.17
+	github.com/projectdiscovery/utils v0.4.18
 	gopkg.in/djherbis/times.v1 v1.3.0
 )
 
