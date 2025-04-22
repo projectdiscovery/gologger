@@ -1,10 +1,9 @@
 package main
 
 import (
-	"strconv"
-
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/gologger/levels"
+	"strconv"
 )
 
 func main() {
@@ -23,6 +22,11 @@ func main() {
 	gologger.DefaultLogger.SetTimestamp(true, levels.LevelDebug)
 	gologger.Debug().Msg("with automatic timestamp")
 	gologger.Info().Msg("without automatic timestamp")
+
+	// custom time format
+	gologger.DefaultLogger.SetTimestamp(true, levels.LevelDebug, "2006-01-02 15:04:05")
+	gologger.Debug().Msg("with custom timestamp format")
+	gologger.Info().Msg("without custom timestamp format")
 
 	gologger.Fatal().Msg("bye bye")
 }
