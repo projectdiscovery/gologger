@@ -1,9 +1,10 @@
 package main
 
 import (
+	"strconv"
+
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/gologger/levels"
-	"strconv"
 )
 
 func main() {
