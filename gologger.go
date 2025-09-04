@@ -1,7 +1,10 @@
 package gologger
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -20,6 +23,10 @@ var (
 		levels.LevelDebug:   "DBG",
 		levels.LevelVerbose: "VER",
 	}
+
+	// Custom level labels for slog levels that don't have direct gologger equivalents
+	// Note: Currently empty as all custom slog levels map to existing gologger levels
+	customLevelLabels = map[slog.Level]string{}
 	// DefaultLogger is the default logging instance
 	DefaultLogger *Logger
 )
@@ -38,6 +45,8 @@ type Logger struct {
 	formatter         formatter.Formatter
 	timestampMinLevel levels.Level
 	timestamp         bool
+	groupPrefix       string      // For slog group support
+	persistedAttrs    []slog.Attr // For slog WithAttrs support
 }
 
 // Log logs a message to a logger instance
@@ -191,7 +200,7 @@ func Silent() *Event {
 	return event
 }
 
-// Print prints a string on stderr without any extra labels.
+// Print prints a string without any extra labels.
 func Print() *Event {
 	event := newDefaultEventWithLevel(levels.LevelInfo)
 	return event
@@ -254,4 +263,265 @@ func (l *Logger) Verbose() *Event {
 
 func isCurrentLevelEnabled(e *Event) bool {
 	return e.level <= e.logger.maxLevel
+}
+
+// formatAttrValue converts slog.Value to string representation appropriate for gologger metadata
+func formatAttrValue(v slog.Value) (result string) {
+	// Add panic recovery to prevent crashes from malformed values
+	defer func() {
+		if r := recover(); r != nil {
+			// If formatting panics, return a safe fallback
+			// This could happen with malformed time values, nil pointers, etc.
+			result = fmt.Sprintf("<error formatting value: %v>", r)
+		}
+	}()
+
+	switch v.Kind() {
+	case slog.KindString:
+		return v.String()
+	case slog.KindInt64:
+		return fmt.Sprintf("%d", v.Int64())
+	case slog.KindUint64:
+		return fmt.Sprintf("%d", v.Uint64())
+	case slog.KindFloat64:
+		f := v.Float64()
+		// Handle special float values gracefully
+		if math.IsNaN(f) {
+			return "NaN"
+		} else if math.IsInf(f, 1) {
+			return "+Inf"
+		} else if math.IsInf(f, -1) {
+			return "-Inf"
+		}
+		return fmt.Sprintf("%g", f)
+	case slog.KindBool:
+		if v.Bool() {
+			return "true"
+		}
+		return "false"
+	case slog.KindDuration:
+		return v.Duration().String()
+	case slog.KindTime:
+		t := v.Time()
+		if t.IsZero() {
+			return "0001-01-01T00:00:00Z"
+		}
+		return t.Format(time.RFC3339)
+	case slog.KindAny:
+		any := v.Any()
+		if any == nil {
+			return "<nil>"
+		}
+		// Use safe formatting that won't panic on circular references
+		return fmt.Sprintf("%+v", any)
+	case slog.KindGroup:
+		// Groups should be handled at a higher level by flattening keys
+		// This shouldn't normally be reached as groups are processed differently
+		return fmt.Sprintf("[group:%s]", v.String())
+	default:
+		// Fallback for unknown kinds or future slog extensions
+		return v.String()
+	}
+}
+
+// Custom slog levels that match gologger's level hierarchy
+// These can be used with any slog handler
+var (
+	LevelTrace   = slog.Level(-8) // Most detailed logging (DEBUG-4)
+	LevelVerbose = slog.Level(-6) // More detailed than debug (DEBUG-2)
+	LevelSilent  = slog.Level(1)  // No label output (INFO+1)
+	LevelFatal   = slog.Level(12) // Critical errors causing exit (ERROR+4)
+)
+
+// slogLevelToGologgerLevel converts slog.Level to gologger levels.Level
+func slogLevelToGologgerLevel(level slog.Level) levels.Level {
+	switch {
+	case level >= LevelFatal:
+		return levels.LevelFatal
+	case level >= slog.LevelError:
+		return levels.LevelError
+	case level >= slog.LevelWarn:
+		return levels.LevelWarning
+	case level >= LevelSilent:
+		return levels.LevelSilent
+	case level >= slog.LevelInfo:
+		return levels.LevelInfo
+	case level >= slog.LevelDebug:
+		return levels.LevelDebug
+	case level >= LevelVerbose:
+		return levels.LevelVerbose
+	case level >= LevelTrace:
+		return levels.LevelVerbose // Map trace to verbose level
+	default:
+		return levels.LevelVerbose
+	}
+}
+
+// // gologgerLevelToSlogLevel converts gologger levels.Level to slog.Level
+// func gologgerLevelToSlogLevel(level levels.Level) slog.Level {
+// 	switch level {
+// 	case levels.LevelFatal:
+// 		return LevelFatal
+// 	case levels.LevelError:
+// 		return slog.LevelError
+// 	case levels.LevelWarning:
+// 		return slog.LevelWarn
+// 	case levels.LevelInfo:
+// 		return slog.LevelInfo
+// 	case levels.LevelSilent:
+// 		return LevelSilent
+// 	case levels.LevelDebug:
+// 		return slog.LevelDebug
+// 	case levels.LevelVerbose:
+// 		return LevelVerbose
+// 	default:
+// 		return slog.LevelInfo
+// 	}
+// }
+
+// Enabled implements slog.Handler interface
+func (l *Logger) Enabled(_ context.Context, level slog.Level) bool {
+	gologgerLevel := slogLevelToGologgerLevel(level)
+	return gologgerLevel <= l.maxLevel
+}
+
+// Handle implements slog.Handler interface
+func (l *Logger) Handle(ctx context.Context, record slog.Record) error {
+	// Check if context is cancelled before proceeding
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	gologgerLevel := slogLevelToGologgerLevel(record.Level)
+
+	event := &Event{
+		logger:   l,
+		level:    gologgerLevel,
+		message:  record.Message,
+		metadata: make(map[string]string),
+	}
+
+	// Add timestamp if enabled
+	if l.timestamp && gologgerLevel >= l.timestampMinLevel {
+		event.TimeStamp()
+	}
+
+	// Set level metadata - but skip for Silent level (Print/Silent should have no labels)
+	if gologgerLevel != levels.LevelSilent {
+		// First check if this is a custom slog level that needs special label
+		if customLabel, ok := customLevelLabels[record.Level]; ok {
+			event.metadata["label"] = customLabel
+		} else if label, ok := labels[gologgerLevel]; ok {
+			// Use standard gologger level labels
+			event.metadata["label"] = label
+		}
+	}
+
+	// Add persisted attributes (from WithAttrs)
+	for _, attr := range l.persistedAttrs {
+		key := l.groupPrefix + attr.Key
+		event.metadata[key] = formatAttrValue(attr.Value)
+	}
+
+	// Add attributes from current record
+	record.Attrs(func(attr slog.Attr) bool {
+		key := l.groupPrefix + attr.Key
+		event.metadata[key] = formatAttrValue(attr.Value)
+		return true
+	})
+
+	l.Log(event)
+	return nil
+}
+
+// WithAttrs implements slog.Handler interface
+func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
+	// Create a new logger instance with same settings and persisted attributes
+	persistedAttrs := make([]slog.Attr, len(l.persistedAttrs)+len(attrs))
+	copy(persistedAttrs, l.persistedAttrs)
+	copy(persistedAttrs[len(l.persistedAttrs):], attrs)
+
+	return &Logger{
+		writer:            l.writer,
+		maxLevel:          l.maxLevel,
+		formatter:         l.formatter,
+		timestampMinLevel: l.timestampMinLevel,
+		timestamp:         l.timestamp,
+		groupPrefix:       l.groupPrefix,
+		persistedAttrs:    persistedAttrs,
+	}
+}
+
+// WithGroup implements slog.Handler interface
+func (l *Logger) WithGroup(name string) slog.Handler {
+	// Validate group name - empty names are allowed but create awkward keys
+	// We don't error on empty names to maintain compatibility with slog spec
+
+	// Build the new group prefix
+	var newPrefix string
+	if name == "" {
+		// Empty group name creates "." prefix which can be confusing
+		// But we allow it for slog compatibility
+		if l.groupPrefix == "" {
+			newPrefix = "."
+		} else {
+			newPrefix = l.groupPrefix + "."
+		}
+	} else {
+		if l.groupPrefix == "" {
+			newPrefix = name + "."
+		} else {
+			newPrefix = l.groupPrefix + name + "."
+		}
+	}
+
+	return &Logger{
+		writer:            l.writer,
+		maxLevel:          l.maxLevel,
+		formatter:         l.formatter,
+		timestampMinLevel: l.timestampMinLevel,
+		timestamp:         l.timestamp,
+		groupPrefix:       newPrefix,
+		persistedAttrs:    l.persistedAttrs,
+	}
+}
+
+// TrimGologgerLevels creates handler options that convert gologger offset levels to clean names
+// e.g., "DEBUG-4" becomes "TRACE", "ERROR+4" becomes "FATAL", "INFO+1" becomes "" (silent)
+func TrimGologgerLevels() *slog.HandlerOptions {
+	return &slog.HandlerOptions{
+		Level: LevelTrace, // Enable all custom levels
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.LevelKey {
+				if level, ok := a.Value.Any().(slog.Level); ok {
+					cleanLevel := cleanLevelString(level)
+					if cleanLevel == "" {
+						// For silent level, return empty attr to remove level entirely
+						return slog.Attr{}
+					}
+					return slog.String(slog.LevelKey, cleanLevel)
+				}
+			}
+			return a
+		},
+	}
+}
+
+// cleanLevelString converts gologger custom levels to clean names
+func cleanLevelString(level slog.Level) string {
+	switch level {
+	case LevelTrace:
+		return "TRACE"
+	case LevelVerbose:
+		return "VERBOSE"
+	case LevelSilent:
+		return "" // Silent = no level label
+	case LevelFatal:
+		return "FATAL"
+	default:
+		// For standard levels, return the standard string
+		return level.String()
+	}
 }
