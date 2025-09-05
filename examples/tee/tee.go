@@ -15,7 +15,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	teeformatter := formatter.NewTee(formatter.NewCLI(false), f)
 
 	gologger.DefaultLogger.SetFormatter(teeformatter)

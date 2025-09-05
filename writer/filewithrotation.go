@@ -139,7 +139,7 @@ func (w *FileWithRotation) checkAndRotate() {
 // Close and flushes the logger
 func (w *FileWithRotation) Close() {
 	_ = w.logFile.Sync()
-	w.logFile.Close()
+	_ = w.logFile.Close()
 }
 
 func (w *FileWithRotation) newLoggerSync() (err error) {
@@ -196,13 +196,13 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 			if err != nil {
 				return
 			}
-			defer in.Close()
+			defer func() { _ = in.Close() }()
 
 			out, err := os.Create(filename + w.options.ArchiveFormat.Extension())
 			if err != nil {
 				return
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 
 			writer, err := w.options.ArchiveFormat.OpenWriter(out)
 			if err != nil {
@@ -214,7 +214,7 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 					_ = os.RemoveAll(out.Name())
 				}
 			}()
-			defer writer.Close()
+			defer func() { _ = writer.Close() }()
 
 			_, err = io.Copy(writer, in)
 			if err != nil {
@@ -243,5 +243,5 @@ func getChangeTime(filename string) (time.Time, error) {
 		return t.ChangeTime(), nil
 	}
 
-	return timeNow, errors.New("No change time")
+	return timeNow, errors.New("no change time")
 }
