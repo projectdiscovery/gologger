@@ -196,13 +196,17 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 			if err != nil {
 				return
 			}
-			defer func() { _ = in.Close() }()
+			defer func() {
+				_ = in.Close()
+			}()
 
 			out, err := os.Create(filename + w.options.ArchiveFormat.Extension())
 			if err != nil {
 				return
 			}
-			defer func() { _ = out.Close() }()
+			defer func() {
+				_ = out.Close()
+			}()
 
 			writer, err := w.options.ArchiveFormat.OpenWriter(out)
 			if err != nil {
@@ -213,6 +217,7 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 				if err != nil {
 					_ = os.RemoveAll(out.Name())
 				}
+				_ = writer.Close()
 			}()
 			defer func() { _ = writer.Close() }()
 
