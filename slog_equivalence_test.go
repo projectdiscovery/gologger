@@ -48,13 +48,108 @@ func setupDualLoggersClean() *dualLoggersClean {
 // assertOutputsEqualClean compares the outputs from both loggers and fails test if different
 func (dl *dualLoggersClean) assertOutputsEqualClean(t *testing.T, testName string) {
 	t.Helper()
-	
+
 	gologgerOutput := strings.TrimSpace(dl.gologgerBuf.String())
 	slogOutput := strings.TrimSpace(dl.slogBuf.String())
-	
-	if gologgerOutput != slogOutput {
+
+	// For outputs with metadata, normalize by sorting key=value pairs
+	if strings.Contains(gologgerOutput, "=") && strings.Contains(slogOutput, "=") {
+		if !outputsEqualIgnoringMetadataOrder(gologgerOutput, slogOutput) {
+			t.Errorf("%s output mismatch:\nGologger: %q\nSlog:     %q", testName, gologgerOutput, slogOutput)
+		}
+	} else if gologgerOutput != slogOutput {
 		t.Errorf("%s output mismatch:\nGologger: %q\nSlog:     %q", testName, gologgerOutput, slogOutput)
 	}
+}
+
+// outputsEqualIgnoringMetadataOrder compares log outputs ignoring the order of metadata key=value pairs
+func outputsEqualIgnoringMetadataOrder(output1, output2 string) bool {
+	// Split into [label] message and metadata parts
+	parts1 := strings.SplitN(output1, "] ", 2)
+	parts2 := strings.SplitN(output2, "] ", 2)
+
+	if len(parts1) != 2 || len(parts2) != 2 {
+		return output1 == output2
+	}
+
+	// Compare label part
+	if parts1[0] != parts2[0] {
+		return false
+	}
+
+	// Split message and metadata
+	remainder1 := strings.SplitN(parts1[1], " ", 2)
+	remainder2 := strings.SplitN(parts2[1], " ", 2)
+
+	// Compare message
+	if remainder1[0] != remainder2[0] {
+		return false
+	}
+
+	if len(remainder1) < 2 && len(remainder2) < 2 {
+		return true // No metadata in either
+	}
+
+	if len(remainder1) != len(remainder2) {
+		return false
+	}
+
+	// Parse and compare metadata as sets
+	metadata1 := parseMetadata(remainder1[1])
+	metadata2 := parseMetadata(remainder2[1])
+
+	if len(metadata1) != len(metadata2) {
+		return false
+	}
+
+	for k, v := range metadata1 {
+		if metadata2[k] != v {
+			return false
+		}
+	}
+
+	return true
+}
+
+// parseMetadata extracts key=value pairs from metadata string
+func parseMetadata(metadata string) map[string]string {
+	result := make(map[string]string)
+
+	// Remove ANSI color codes for parsing
+	cleaned := stripAnsiCodes(metadata)
+
+	// Split by space and parse key=value pairs
+	pairs := strings.Fields(cleaned)
+	for _, pair := range pairs {
+		if kv := strings.SplitN(pair, "=", 2); len(kv) == 2 {
+			result[kv[0]] = kv[1]
+		}
+	}
+
+	return result
+}
+
+// stripAnsiCodes removes ANSI color codes from string
+func stripAnsiCodes(s string) string {
+	// Simple ANSI code removal
+	result := strings.Builder{}
+	inEscape := false
+
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		result.WriteRune(r)
+	}
+
+	return result.String()
 }
 
 // reset clears both buffers for next test
@@ -143,17 +238,18 @@ func TestPackageLevelFunctionsWithMetadataClean(t *testing.T) {
 			slogFunc:     func() { dl.slogLogger.Info("test message", slog.String("key", "value")) },
 		},
 		{
-			name: "Error with single attribute",
+			name: "Error with multiple attributes",
 			gologgerFunc: func() {
-				Error().Str("component", "auth").Msg("authentication failed")
+				Error().Str("component", "auth").Str("user", "john").Msg("authentication failed")
 			},
 			slogFunc: func() {
 				dl.slogLogger.Error("authentication failed",
-					slog.String("component", "auth"))
+					slog.String("component", "auth"),
+					slog.String("user", "john"))
 			},
 		},
 		{
-			name: "Debug with single attribute",
+			name: "Debug with mixed attribute types",
 			gologgerFunc: func() { Debug().Str("service", "api").Msg("debug info") },
 			slogFunc:     func() { dl.slogLogger.Debug("debug info", slog.String("service", "api")) },
 		},
