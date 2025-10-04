@@ -219,6 +219,7 @@ func (w *FileWithRotation) renameAndCompressLogs() {
 				}
 				_ = writer.Close()
 			}()
+			defer func() { _ = writer.Close() }()
 
 			_, err = io.Copy(writer, in)
 			if err != nil {
