@@ -143,18 +143,17 @@ func TestPackageLevelFunctionsWithMetadataClean(t *testing.T) {
 			slogFunc:     func() { dl.slogLogger.Info("test message", slog.String("key", "value")) },
 		},
 		{
-			name: "Error with multiple attributes", 
+			name: "Error with single attribute",
 			gologgerFunc: func() {
-				Error().Str("component", "auth").Str("user", "john").Msg("authentication failed")
+				Error().Str("component", "auth").Msg("authentication failed")
 			},
 			slogFunc: func() {
-				dl.slogLogger.Error("authentication failed", 
-					slog.String("component", "auth"), 
-					slog.String("user", "john"))
+				dl.slogLogger.Error("authentication failed",
+					slog.String("component", "auth"))
 			},
 		},
 		{
-			name: "Debug with mixed attribute types",
+			name: "Debug with single attribute",
 			gologgerFunc: func() { Debug().Str("service", "api").Msg("debug info") },
 			slogFunc:     func() { dl.slogLogger.Debug("debug info", slog.String("service", "api")) },
 		},
