@@ -83,8 +83,6 @@ func (l *Logger) SetTimestamp(timestamp bool, minLevel levels.Level, format ...s
 	l.timestampMinLevel = minLevel
 	if len(format) > 0 {
 		l.timestampFormat = format[0]
-	} else {
-		l.timestampFormat = time.RFC3339
 	}
 }
 
@@ -124,7 +122,11 @@ func (e *Event) Label(label string) *Event {
 
 // TimeStamp adds timestamp to the log event
 func (e *Event) TimeStamp() *Event {
-	e.metadata["timestamp"] = time.Now().Format(e.logger.timestampFormat)
+	timestampFormat := time.RFC3339
+	if e.logger.timestampFormat != "" {
+		timestampFormat = e.logger.timestampFormat
+	}
+	e.metadata["timestamp"] = time.Now().Format(timestampFormat)
 	return e
 }
 
