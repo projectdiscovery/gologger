@@ -25,7 +25,7 @@ func main() {
 	gologger.Info().Msg("without automatic timestamp")
 
 	// custom time format
-	gologger.DefaultLogger.SetTimestamp(true, levels.LevelDebug, "2006-01-02 15:04:05")
+	gologger.DefaultLogger.SetTimestampWithFormat(true, levels.LevelDebug, "2006-01-02 15:04:05")
 	gologger.Debug().Msg("with custom timestamp format")
 	gologger.Info().Msg("without custom timestamp format")
 

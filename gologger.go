@@ -78,11 +78,15 @@ func (l *Logger) SetWriter(writer writer.Writer) {
 }
 
 // SetTimestamp enables/disables automatic or custom timestamp
-func (l *Logger) SetTimestamp(timestamp bool, minLevel levels.Level, format ...string) {
+func (l *Logger) SetTimestamp(timestamp bool, minLevel levels.Level) {
+	l.SetTimestampWithFormat(timestamp, minLevel, time.RFC3339)
+}
+
+func (l *Logger) SetTimestampWithFormat(timestamp bool, minLevel levels.Level, format string) {
 	l.timestamp = timestamp
 	l.timestampMinLevel = minLevel
 	if len(format) > 0 {
-		l.timestampFormat = format[0]
+		l.timestampFormat = format
 	}
 }
 
