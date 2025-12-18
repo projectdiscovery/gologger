@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/djherbis/times"
 	"github.com/mholt/archives"
 	"github.com/projectdiscovery/gologger/levels"
-	"gopkg.in/djherbis/times.v1"
 )
 
 func init() {
