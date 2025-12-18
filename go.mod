@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/djherbis/times v1.6.0
 	github.com/json-iterator/go v1.1.12
-	github.com/logrusorgru/aurora v2.0.3+incompatible
+	github.com/logrusorgru/aurora/v4 v4.0.0
 	github.com/mholt/archives v0.1.0
 	github.com/projectdiscovery/utils v0.7.3
 )
