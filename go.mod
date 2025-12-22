@@ -7,7 +7,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/logrusorgru/aurora/v4 v4.0.0
 	github.com/mholt/archives v0.1.0
-	github.com/projectdiscovery/utils v0.7.3
+	github.com/projectdiscovery/utils v0.8.0
 )
 
 require (
