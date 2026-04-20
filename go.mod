@@ -7,7 +7,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/logrusorgru/aurora/v4 v4.0.0
 	github.com/mholt/archives v0.1.5
-	github.com/projectdiscovery/utils v0.9.0
+	github.com/projectdiscovery/utils v0.10.1
 )
 
 require (
@@ -30,6 +30,6 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 )
