@@ -38,13 +38,14 @@ func init() {
 	DefaultLogger.SetWriter(writer.NewCLI())
 }
 
-// Logger is a logger for logging structured data in a beautfiul and fast manner.
+// Logger is a logger for logging structured data in a beautiful and fast manner.
 type Logger struct {
 	writer            writer.Writer
 	maxLevel          levels.Level
 	formatter         formatter.Formatter
 	timestampMinLevel levels.Level
 	timestamp         bool
+	timestampFormat   string
 	groupPrefix       string      // For slog group support
 	persistedAttrs    []slog.Attr // For slog WithAttrs support
 }
@@ -85,10 +86,17 @@ func (l *Logger) SetWriter(writer writer.Writer) {
 	l.writer = writer
 }
 
-// SetTimestamp enables/disables automatic timestamp
+// SetTimestamp enables/disables automatic or custom timestamp
 func (l *Logger) SetTimestamp(timestamp bool, minLevel levels.Level) {
+	l.SetTimestampWithFormat(timestamp, minLevel, time.RFC3339)
+}
+
+func (l *Logger) SetTimestampWithFormat(timestamp bool, minLevel levels.Level, format string) {
 	l.timestamp = timestamp
 	l.timestampMinLevel = minLevel
+	if len(format) > 0 {
+		l.timestampFormat = format
+	}
 }
 
 // Event is a log event to be written with data
@@ -127,7 +135,11 @@ func (e *Event) Label(label string) *Event {
 
 // TimeStamp adds timestamp to the log event
 func (e *Event) TimeStamp() *Event {
-	e.metadata["timestamp"] = time.Now().Format(time.RFC3339)
+	timestampFormat := time.RFC3339
+	if e.logger.timestampFormat != "" {
+		timestampFormat = e.logger.timestampFormat
+	}
+	e.metadata["timestamp"] = time.Now().Format(timestampFormat)
 	return e
 }
 
@@ -449,6 +461,7 @@ func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
 		formatter:         l.formatter,
 		timestampMinLevel: l.timestampMinLevel,
 		timestamp:         l.timestamp,
+		timestampFormat:   l.timestampFormat,
 		groupPrefix:       l.groupPrefix,
 		persistedAttrs:    persistedAttrs,
 	}
@@ -483,6 +496,7 @@ func (l *Logger) WithGroup(name string) slog.Handler {
 		formatter:         l.formatter,
 		timestampMinLevel: l.timestampMinLevel,
 		timestamp:         l.timestamp,
+		timestampFormat:   l.timestampFormat,
 		groupPrefix:       newPrefix,
 		persistedAttrs:    l.persistedAttrs,
 	}
