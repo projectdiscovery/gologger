@@ -371,17 +371,24 @@ func TestEdgeCases(t *testing.T) {
 		logger.SetFormatter(formatter.NewCLI(false))
 		logger.SetWriter(&testWriter{buf: buf})
 
-		// Test empty group name (should still work but create awkward keys)
+		// Per slog.Handler contract, WithGroup("") returns the receiver unchanged.
 		emptyGroupLogger := logger.WithGroup("")
+		if emptyGroupLogger != slog.Handler(logger) {
+			t.Fatal("WithGroup(\"\") must return the receiver unchanged")
+		}
+
 		slogLogger := slog.New(emptyGroupLogger)
-		
+
 		buf.Reset()
 		slogLogger.Info("test", slog.String("key", "value"))
 		output := buf.String()
-		
-		// Should contain the attribute with empty group prefix
-		if !strings.Contains(output, ".key") || !strings.Contains(output, "value") {
-			t.Errorf("Expected empty group to create '.key=value', got: %q", output)
+
+		// Attribute key should not be prefixed with a dot.
+		if strings.Contains(output, ".key") {
+			t.Errorf("Empty group must not produce a '.key' prefix, got: %q", output)
+		}
+		if !strings.Contains(output, "key") || !strings.Contains(output, "value") {
+			t.Errorf("Expected attribute 'key=value', got: %q", output)
 		}
 	})
 

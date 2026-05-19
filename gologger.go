@@ -24,9 +24,6 @@ var (
 		levels.LevelVerbose: "VER",
 	}
 
-	// Custom level labels for slog levels that don't have direct gologger equivalents
-	// Note: Currently empty as all custom slog levels map to existing gologger levels
-	customLevelLabels = map[slog.Level]string{}
 	// DefaultLogger is the default logging instance
 	DefaultLogger *Logger
 )
@@ -262,7 +259,7 @@ func (l *Logger) Fatal() *Event {
 
 // Print prints a string on screen without any extra labels.
 func (l *Logger) Print() *Event {
-	event := newEventWithLevelAndLogger(levels.LevelSilent, l)
+	event := newEventWithLevelAndLogger(levels.LevelInfo, l)
 	return event
 }
 
@@ -336,9 +333,9 @@ func formatAttrValue(v slog.Value) (result string) {
 	}
 }
 
-// Custom slog levels that match gologger's level hierarchy
-// These can be used with any slog handler
-var (
+// Custom slog levels that match gologger's level hierarchy.
+// These can be used with any slog handler.
+const (
 	LevelTrace   = slog.Level(-8) // Most detailed logging (DEBUG-4)
 	LevelVerbose = slog.Level(-6) // More detailed than debug (DEBUG-2)
 	LevelSilent  = slog.Level(1)  // No label output (INFO+1)
@@ -422,11 +419,7 @@ func (l *Logger) Handle(ctx context.Context, record slog.Record) error {
 
 	// Set level metadata - but skip for Silent level (Print/Silent should have no labels)
 	if gologgerLevel != levels.LevelSilent {
-		// First check if this is a custom slog level that needs special label
-		if customLabel, ok := customLevelLabels[record.Level]; ok {
-			event.metadata["label"] = customLabel
-		} else if label, ok := labels[gologgerLevel]; ok {
-			// Use standard gologger level labels
+		if label, ok := labels[gologgerLevel]; ok {
 			event.metadata["label"] = label
 		}
 	}
@@ -467,27 +460,18 @@ func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
-// WithGroup implements slog.Handler interface
+// WithGroup implements slog.Handler interface.
+// Per the slog.Handler contract, an empty name returns the receiver unchanged.
 func (l *Logger) WithGroup(name string) slog.Handler {
-	// Validate group name - empty names are allowed but create awkward keys
-	// We don't error on empty names to maintain compatibility with slog spec
-
-	// Build the new group prefix
-	var newPrefix string
 	if name == "" {
-		// Empty group name creates "." prefix which can be confusing
-		// But we allow it for slog compatibility
-		if l.groupPrefix == "" {
-			newPrefix = "."
-		} else {
-			newPrefix = l.groupPrefix + "."
-		}
+		return l
+	}
+
+	var newPrefix string
+	if l.groupPrefix == "" {
+		newPrefix = name + "."
 	} else {
-		if l.groupPrefix == "" {
-			newPrefix = name + "."
-		} else {
-			newPrefix = l.groupPrefix + name + "."
-		}
+		newPrefix = l.groupPrefix + name + "."
 	}
 
 	return &Logger{
