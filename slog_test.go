@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,12 +15,17 @@ import (
 	"github.com/projectdiscovery/gologger/levels"
 )
 
-// testWriter captures output for testing
+// testWriter captures output for testing. Concurrency tests share a
+// single instance across goroutines, so we guard the underlying buffer
+// with a mutex.
 type testWriter struct {
+	mu  sync.Mutex
 	buf *bytes.Buffer
 }
 
 func (tw *testWriter) Write(data []byte, level levels.Level) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
 	tw.buf.Write(data)
 }
 
@@ -45,23 +52,23 @@ func TestSlogCompatibility(t *testing.T) {
 	slogLogger.Error("slog error message")
 
 	output := buf.String()
-	
+
 	// Verify output contains expected messages
 	if output == "" {
 		t.Fatal("Expected output from slog logging, got empty string")
 	}
-	
+
 	// Reset buffer for backward compatibility test
 	buf.Reset()
 
 	// Test backward compatibility - existing gologger API should still work
 	testLogger.Info().Msg("gologger info message")
 	testLogger.Debug().Msg("gologger debug message")
-	testLogger.Warning().Msg("gologger warning message") 
+	testLogger.Warning().Msg("gologger warning message")
 	testLogger.Error().Msg("gologger error message")
 
 	backwardOutput := buf.String()
-	
+
 	if backwardOutput == "" {
 		t.Fatal("Expected output from gologger logging, got empty string")
 	}
@@ -81,7 +88,7 @@ func TestLevelMapping(t *testing.T) {
 	for _, test := range tests {
 		result := slogLevelToGologgerLevel(test.slogLevel)
 		if result != test.expectedLevel {
-			t.Errorf("slogLevelToGologgerLevel(%v) = %v, want %v", 
+			t.Errorf("slogLevelToGologgerLevel(%v) = %v, want %v",
 				test.slogLevel, result, test.expectedLevel)
 		}
 	}
@@ -104,7 +111,7 @@ func TestSlogHandlerMethods(t *testing.T) {
 	// Test Handle
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
 	record.AddAttrs(slog.String("key", "value"))
-	
+
 	err := logger.Handle(ctx, record)
 	if err != nil {
 		t.Errorf("Handle returned error: %v", err)
@@ -126,48 +133,47 @@ func TestSlogHandlerMethods(t *testing.T) {
 	}
 }
 
-
 func TestOutputIdentity(t *testing.T) {
 	// Test that gologger.Info().Msg() and slog.Info() produce identical output
-	
+
 	// Capture gologger output
 	gologgerBuf := &bytes.Buffer{}
 	gologgerLogger := &Logger{}
 	gologgerLogger.SetMaxLevel(levels.LevelDebug)
 	gologgerLogger.SetFormatter(formatter.NewCLI(false)) // no colors for comparison
 	gologgerLogger.SetWriter(&testWriter{buf: gologgerBuf})
-	
-	// Capture slog output using same gologger as handler  
+
+	// Capture slog output using same gologger as handler
 	slogBuf := &bytes.Buffer{}
 	slogLogger := &Logger{}
 	slogLogger.SetMaxLevel(levels.LevelDebug)
 	slogLogger.SetFormatter(formatter.NewCLI(false)) // no colors for comparison
 	slogLogger.SetWriter(&testWriter{buf: slogBuf})
-	
+
 	slogInstance := slog.New(slogLogger)
-	
+
 	// Test identical messages
 	gologgerLogger.Info().Msg("test message")
 	slogInstance.Info("test message")
-	
+
 	gologgerOutput := gologgerBuf.String()
 	slogOutput := slogBuf.String()
-	
+
 	if gologgerOutput != slogOutput {
 		t.Errorf("Output mismatch:\nGologger: %q\nSlog: %q", gologgerOutput, slogOutput)
 	}
-	
+
 	// Reset buffers
 	gologgerBuf.Reset()
 	slogBuf.Reset()
-	
-	// Test with metadata/attributes  
+
+	// Test with metadata/attributes
 	gologgerLogger.Info().Str("key", "value").Msg("test with metadata")
 	slogInstance.Info("test with metadata", slog.String("key", "value"))
-	
+
 	gologgerOutput = gologgerBuf.String()
 	slogOutput = slogBuf.String()
-	
+
 	if gologgerOutput != slogOutput {
 		t.Errorf("Output with metadata mismatch:\nGologger: %q\nSlog: %q", gologgerOutput, slogOutput)
 	}
@@ -198,12 +204,12 @@ func TestCustomSlogLevels(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			buf.Reset()
 			slogLogger.Log(ctx, test.level, test.expectedMsg)
-			
+
 			output := buf.String()
 			if output == "" {
 				t.Errorf("Expected output for %s level, got empty string", test.name)
 			}
-			
+
 			// Verify message content
 			if !strings.Contains(output, test.expectedMsg) {
 				t.Errorf("Expected output to contain %q, got %q", test.expectedMsg, output)
@@ -222,11 +228,11 @@ func TestSlogGroups(t *testing.T) {
 	// Test simple group
 	groupLogger := logger.WithGroup("api")
 	slogLogger := slog.New(groupLogger)
-	
+
 	buf.Reset()
 	slogLogger.Info("test message", slog.String("method", "POST"))
 	output := buf.String()
-	
+
 	// Should contain grouped attribute (allowing for ANSI codes)
 	if !strings.Contains(output, "api.method") || !strings.Contains(output, "POST") {
 		t.Errorf("Expected grouped attribute 'api.method=POST', got: %q", output)
@@ -235,11 +241,11 @@ func TestSlogGroups(t *testing.T) {
 	// Test nested groups
 	nestedLogger := groupLogger.WithGroup("request")
 	nestedSlogLogger := slog.New(nestedLogger)
-	
+
 	buf.Reset()
 	nestedSlogLogger.Info("nested test", slog.String("path", "/users"))
 	output = buf.String()
-	
+
 	// Should contain nested grouped attribute (allowing for ANSI codes)
 	if !strings.Contains(output, "api.request.path") || !strings.Contains(output, "/users") {
 		t.Errorf("Expected nested grouped attribute 'api.request.path=/users', got: %q", output)
@@ -259,11 +265,11 @@ func TestSlogWithAttrs(t *testing.T) {
 		slog.String("version", "1.0"),
 	})
 	slogLogger := slog.New(persistedLogger)
-	
+
 	buf.Reset()
 	slogLogger.Info("test message", slog.String("endpoint", "/login"))
 	output := buf.String()
-	
+
 	// Should contain persisted and current attributes (allowing for ANSI codes)
 	if !strings.Contains(output, "service") || !strings.Contains(output, "api") {
 		t.Errorf("Expected persisted attribute 'service=api', got: %q", output)
@@ -284,7 +290,7 @@ func TestAttributeTypes(t *testing.T) {
 	logger.SetWriter(&testWriter{buf: buf})
 
 	slogLogger := slog.New(logger)
-	
+
 	buf.Reset()
 	slogLogger.Info("attribute test",
 		slog.String("str", "value"),
@@ -295,13 +301,13 @@ func TestAttributeTypes(t *testing.T) {
 		slog.Time("time", time.Date(2023, 12, 7, 10, 30, 0, 0, time.UTC)),
 		slog.Any("any", map[string]int{"count": 5}),
 	)
-	
+
 	output := buf.String()
-	
+
 	// Verify all attribute types are formatted correctly (allowing for ANSI codes)
 	expectedValues := []string{
 		"value",
-		"42", 
+		"42",
 		"true",
 		"3.14",
 		"100ms",
@@ -311,13 +317,13 @@ func TestAttributeTypes(t *testing.T) {
 	expectedKeys := []string{
 		"str",
 		"int",
-		"bool", 
+		"bool",
 		"float",
 		"dur",
 		"time",
 		"any",
 	}
-	
+
 	for i, key := range expectedKeys {
 		if !strings.Contains(output, key) || !strings.Contains(output, expectedValues[i]) {
 			t.Errorf("Expected output to contain key %q and value %q, got: %q", key, expectedValues[i], output)
@@ -335,7 +341,7 @@ func TestFatalLevelOutput(t *testing.T) {
 	// Test that we can capture Fatal level output before exit
 	// We can't test the actual exit behavior in a unit test easily,
 	// but we can verify the message gets logged
-	
+
 	// Create a subprocess test for actual exit behavior would be better
 	// but for now just test that the message is formatted correctly
 	event := &Event{
@@ -345,7 +351,7 @@ func TestFatalLevelOutput(t *testing.T) {
 		metadata: make(map[string]string),
 	}
 	event.setLevelMetadata(levels.LevelFatal)
-	
+
 	// Manually call formatter and writer (bypassing the Log method that would exit)
 	data, err := logger.formatter.Format(&formatter.LogEvent{
 		Message:  event.message,
@@ -356,7 +362,7 @@ func TestFatalLevelOutput(t *testing.T) {
 		t.Fatalf("Formatter error: %v", err)
 	}
 	logger.writer.Write(data, event.level)
-	
+
 	output := buf.String()
 	if !strings.Contains(output, "fatal error") {
 		t.Errorf("Expected fatal message in output, got: %q", output)
@@ -402,11 +408,11 @@ func TestEdgeCases(t *testing.T) {
 		// Test deep group nesting
 		deepLogger := logger.WithGroup("level1").WithGroup("level2").WithGroup("level3")
 		slogLogger := slog.New(deepLogger)
-		
+
 		buf.Reset()
 		slogLogger.Info("nested message", slog.String("key", "deep"))
 		output := buf.String()
-		
+
 		// Should contain deeply nested attribute key
 		if !strings.Contains(output, "level1.level2.level3.key") || !strings.Contains(output, "deep") {
 			t.Errorf("Expected deeply nested key 'level1.level2.level3.key=deep', got: %q", output)
@@ -424,13 +430,13 @@ func TestEdgeCases(t *testing.T) {
 		baseLogger := logger.WithAttrs([]slog.Attr{slog.String("base", "value")})
 		groupLogger := baseLogger.WithGroup("api")
 		finalLogger := groupLogger.WithAttrs([]slog.Attr{slog.String("service", "auth")})
-		
+
 		slogLogger := slog.New(finalLogger)
-		
+
 		buf.Reset()
 		slogLogger.Info("mixed test", slog.String("request", "login"))
 		output := buf.String()
-		
+
 		// Should contain all attributes: base (no group), service (grouped), request (grouped)
 		if !strings.Contains(output, "base") || !strings.Contains(output, "value") {
 			t.Errorf("Expected base attribute, got: %q", output)
@@ -448,41 +454,41 @@ func TestConcurrentUsage(t *testing.T) {
 	// Test that concurrent usage of logger doesn't cause data races or corruption
 	buf := &bytes.Buffer{}
 	logger := &Logger{}
-	logger.SetMaxLevel(levels.LevelInfo) 
+	logger.SetMaxLevel(levels.LevelInfo)
 	logger.SetFormatter(formatter.NewCLI(false))
 	logger.SetWriter(&testWriter{buf: buf})
 
 	slogLogger := slog.New(logger)
-	
+
 	// Run multiple goroutines logging concurrently
 	const numGoroutines = 10
 	const messagesPerGoroutine = 10
-	
+
 	done := make(chan bool, numGoroutines)
-	
+
 	for i := 0; i < numGoroutines; i++ {
 		go func(id int) {
 			for j := 0; j < messagesPerGoroutine; j++ {
-				slogLogger.Info("concurrent message", 
-					slog.Int("goroutine", id), 
+				slogLogger.Info("concurrent message",
+					slog.Int("goroutine", id),
 					slog.Int("message", j))
 			}
 			done <- true
 		}(i)
 	}
-	
+
 	// Wait for all goroutines to complete
 	for i := 0; i < numGoroutines; i++ {
 		<-done
 	}
-	
+
 	output := buf.String()
-	
+
 	// Should contain messages from all goroutines (exact count may vary due to concurrency)
 	if len(output) == 0 {
 		t.Error("Expected output from concurrent logging, got empty string")
 	}
-	
+
 	// Check that we have messages from different goroutines
 	foundGoroutines := make(map[int]bool)
 	lines := strings.Split(output, "\n")
@@ -493,8 +499,132 @@ func TestConcurrentUsage(t *testing.T) {
 			}
 		}
 	}
-	
+
 	if len(foundGoroutines) < numGoroutines/2 {
 		t.Errorf("Expected messages from at least %d goroutines, found %d", numGoroutines/2, len(foundGoroutines))
+	}
+}
+
+// Regression test for Logger.Print(): must use LevelInfo to match the
+// package-level Print() and produce a label-less line at INF level.
+func TestLoggerPrintLevel(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := &Logger{}
+	logger.SetMaxLevel(levels.LevelInfo)
+	logger.SetFormatter(formatter.NewCLI(false))
+	logger.SetWriter(&testWriter{buf: buf})
+
+	logger.Print().Msg("plain")
+
+	out := buf.String()
+	if out == "" {
+		t.Fatal("Logger.Print().Msg() produced no output at LevelInfo")
+	}
+	// Print events carry no level label.
+	if strings.Contains(out, "[INF]") || strings.Contains(out, "[SIL]") {
+		t.Errorf("Logger.Print() should emit no level label, got: %q", out)
+	}
+}
+
+func TestHandleContextCancelled(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := &Logger{}
+	logger.SetMaxLevel(levels.LevelDebug)
+	logger.SetFormatter(formatter.NewCLI(false))
+	logger.SetWriter(&testWriter{buf: buf})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "should not log", 0)
+	err := logger.Handle(ctx, record)
+	if err == nil {
+		t.Fatal("Handle(cancelled ctx) returned nil error, want ctx.Err()")
+	}
+	if buf.Len() != 0 {
+		t.Errorf("Handle(cancelled ctx) wrote output: %q", buf.String())
+	}
+}
+
+func TestSlogLevelToGologgerLevel_Custom(t *testing.T) {
+	tests := []struct {
+		in   slog.Level
+		want levels.Level
+	}{
+		{LevelTrace, levels.LevelVerbose},
+		{LevelVerbose, levels.LevelVerbose},
+		{LevelSilent, levels.LevelSilent},
+		{LevelFatal, levels.LevelFatal},
+		{slog.Level(-100), levels.LevelVerbose}, // below all known thresholds
+	}
+	for _, tt := range tests {
+		if got := slogLevelToGologgerLevel(tt.in); got != tt.want {
+			t.Errorf("slogLevelToGologgerLevel(%v) = %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestFormatAttrValueEdgeCases(t *testing.T) {
+	t.Run("ZeroTime", func(t *testing.T) {
+		got := formatAttrValue(slog.TimeValue(time.Time{}))
+		if got != "0001-01-01T00:00:00Z" {
+			t.Errorf("zero time = %q", got)
+		}
+	})
+	t.Run("NilAny", func(t *testing.T) {
+		got := formatAttrValue(slog.AnyValue(nil))
+		if got != "<nil>" {
+			t.Errorf("nil any = %q", got)
+		}
+	})
+	t.Run("Group", func(t *testing.T) {
+		got := formatAttrValue(slog.GroupValue(slog.String("k", "v")))
+		if !strings.HasPrefix(got, "[group:") {
+			t.Errorf("group value should fall back to [group:...], got %q", got)
+		}
+	})
+	t.Run("FloatSpecials", func(t *testing.T) {
+		for in, want := range map[float64]string{
+			math.NaN():   "NaN",
+			math.Inf(1):  "+Inf",
+			math.Inf(-1): "-Inf",
+		} {
+			if got := formatAttrValue(slog.Float64Value(in)); got != want {
+				t.Errorf("float %v = %q, want %q", in, got, want)
+			}
+		}
+	})
+}
+
+func TestTrimGologgerLevels(t *testing.T) {
+	var out bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&out, TrimGologgerLevels()))
+	ctx := context.Background()
+
+	cases := []struct {
+		level    slog.Level
+		levelKey string // expected value at "level" key; "" means no key
+	}{
+		{LevelTrace, "TRACE"},
+		{LevelVerbose, "VERBOSE"},
+		{LevelFatal, "FATAL"},
+		{slog.LevelInfo, "INFO"},
+		{LevelSilent, ""}, // silent removes the level key entirely
+	}
+
+	for _, c := range cases {
+		out.Reset()
+		logger.Log(ctx, c.level, "msg")
+		body := out.String()
+		if c.levelKey == "" {
+			if strings.Contains(body, `"level":`) {
+				t.Errorf("LevelSilent should drop the level key, got: %s", body)
+			}
+			continue
+		}
+		needle := `"level":"` + c.levelKey + `"`
+		if !strings.Contains(body, needle) {
+			t.Errorf("expected %s in JSON output, got: %s", needle, body)
+		}
 	}
 }

@@ -25,18 +25,18 @@ func setupDualLoggersClean() *dualLoggersClean {
 	// Setup gologger instance
 	gologgerBuf := &bytes.Buffer{}
 	gologger := &Logger{}
-	gologger.SetMaxLevel(levels.LevelVerbose) // Enable all levels
+	gologger.SetMaxLevel(levels.LevelVerbose)      // Enable all levels
 	gologger.SetFormatter(formatter.NewCLI(false)) // No colors for comparison
 	gologger.SetWriter(&testWriter{buf: gologgerBuf})
-	
+
 	// Setup slog instance using gologger handler
 	slogBuf := &bytes.Buffer{}
 	slogHandler := &Logger{}
-	slogHandler.SetMaxLevel(levels.LevelVerbose) // Enable all levels
+	slogHandler.SetMaxLevel(levels.LevelVerbose)      // Enable all levels
 	slogHandler.SetFormatter(formatter.NewCLI(false)) // No colors for comparison
 	slogHandler.SetWriter(&testWriter{buf: slogBuf})
 	slogLogger := slog.New(slogHandler)
-	
+
 	return &dualLoggersClean{
 		gologgerBuf: gologgerBuf,
 		slogBuf:     slogBuf,
@@ -163,55 +163,55 @@ func TestPackageLevelFunctionsClean(t *testing.T) {
 	// Setup package-level gologger to use our test buffer
 	originalLogger := DefaultLogger
 	defer func() { DefaultLogger = originalLogger }() // restore after test
-	
+
 	dl := setupDualLoggersClean()
 	DefaultLogger = dl.gologger // Use our test logger as default
-	
+
 	tests := []struct {
-		name           string
-		gologgerFunc   func()
-		slogFunc       func()
+		name         string
+		gologgerFunc func()
+		slogFunc     func()
 	}{
 		{
-			name: "Info",
+			name:         "Info",
 			gologgerFunc: func() { Info().Msg("test info message") },
 			slogFunc:     func() { dl.slogLogger.Info("test info message") },
 		},
 		{
-			name: "Warning", 
+			name:         "Warning",
 			gologgerFunc: func() { Warning().Msg("test warning message") },
 			slogFunc:     func() { dl.slogLogger.Warn("test warning message") },
 		},
 		{
-			name: "Error",
+			name:         "Error",
 			gologgerFunc: func() { Error().Msg("test error message") },
 			slogFunc:     func() { dl.slogLogger.Error("test error message") },
 		},
 		{
-			name: "Debug",
+			name:         "Debug",
 			gologgerFunc: func() { Debug().Msg("test debug message") },
 			slogFunc:     func() { dl.slogLogger.Debug("test debug message") },
 		},
 		{
-			name: "Verbose", 
+			name:         "Verbose",
 			gologgerFunc: func() { Verbose().Msg("test verbose message") },
 			slogFunc:     func() { dl.slogLogger.LogAttrs(context.Background(), LevelVerbose, "test verbose message") },
 		},
 		{
-			name: "Print",
+			name:         "Print",
 			gologgerFunc: func() { Print().Msg("test print message") },
 			slogFunc:     func() { dl.slogLogger.LogAttrs(context.Background(), LevelSilent, "test print message") },
 		},
 	}
-	
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			dl.reset()
-			
+
 			// Execute both logging approaches
 			test.gologgerFunc()
 			test.slogFunc()
-			
+
 			// Compare outputs
 			dl.assertOutputsEqualClean(t, test.name)
 		})
@@ -223,17 +223,17 @@ func TestPackageLevelFunctionsWithMetadataClean(t *testing.T) {
 	// Setup package-level gologger to use our test buffer
 	originalLogger := DefaultLogger
 	defer func() { DefaultLogger = originalLogger }()
-	
+
 	dl := setupDualLoggersClean()
 	DefaultLogger = dl.gologger
-	
+
 	tests := []struct {
-		name           string
-		gologgerFunc   func()
-		slogFunc       func()
+		name         string
+		gologgerFunc func()
+		slogFunc     func()
 	}{
 		{
-			name: "Info with single attribute",
+			name:         "Info with single attribute",
 			gologgerFunc: func() { Info().Str("key", "value").Msg("test message") },
 			slogFunc:     func() { dl.slogLogger.Info("test message", slog.String("key", "value")) },
 		},
@@ -249,19 +249,19 @@ func TestPackageLevelFunctionsWithMetadataClean(t *testing.T) {
 			},
 		},
 		{
-			name: "Debug with mixed attribute types",
+			name:         "Debug with mixed attribute types",
 			gologgerFunc: func() { Debug().Str("service", "api").Msg("debug info") },
 			slogFunc:     func() { dl.slogLogger.Debug("debug info", slog.String("service", "api")) },
 		},
 	}
-	
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			dl.reset()
-			
+
 			test.gologgerFunc()
 			test.slogFunc()
-			
+
 			dl.assertOutputsEqualClean(t, test.name)
 		})
 	}
