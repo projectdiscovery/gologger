@@ -259,7 +259,7 @@ func (l *Logger) Fatal() *Event {
 
 // Print prints a string on screen without any extra labels.
 func (l *Logger) Print() *Event {
-	event := newEventWithLevelAndLogger(levels.LevelInfo, l)
+	event := newEventWithLevelAndLogger(levels.LevelSilent, l)
 	return event
 }
 
