@@ -6,7 +6,7 @@ require (
 	github.com/djherbis/times v1.6.0
 	github.com/json-iterator/go v1.1.12
 	github.com/logrusorgru/aurora/v4 v4.0.0
-	github.com/projectdiscovery/utils v0.11.0
+	github.com/projectdiscovery/utils v0.11.1
 )
 
 require (

@@ -17,8 +17,8 @@ github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjY
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/projectdiscovery/utils v0.11.0 h1:CxImZSRyj9spy1wpB9HKJopr5MsIPm2r5iS8uyhAMoQ=
-github.com/projectdiscovery/utils v0.11.0/go.mod h1:q2mZngH1s4WDO3knYxG7iyP1KcxoRSORJCWSpCKFc1s=
+github.com/projectdiscovery/utils v0.11.1 h1:PWj1KjIASxt8icxommH72C0TQqNOvGkcSODRkiq0SQw=
+github.com/projectdiscovery/utils v0.11.1/go.mod h1:yktGrHGk2CTjNiccXovnvGrLHX9sV2bqz9nSnbA3V8M=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
