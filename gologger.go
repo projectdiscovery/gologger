@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/projectdiscovery/gologger/formatter"
@@ -38,7 +39,7 @@ func init() {
 // Logger is a logger for logging structured data in a beautiful and fast manner.
 type Logger struct {
 	writer            writer.Writer
-	maxLevel          levels.Level
+	maxLevel          atomic.Int32 // stores levels.Level
 	formatter         formatter.Formatter
 	timestampMinLevel levels.Level
 	timestamp         bool
@@ -70,7 +71,11 @@ func (l *Logger) Log(event *Event) {
 
 // SetMaxLevel sets the max logging level for logger
 func (l *Logger) SetMaxLevel(level levels.Level) {
-	l.maxLevel = level
+	l.maxLevel.Store(int32(level))
+}
+
+func (l *Logger) getMaxLevel() levels.Level {
+	return levels.Level(l.maxLevel.Load())
 }
 
 // SetFormatter sets the formatter instance for a logger
@@ -271,7 +276,7 @@ func (l *Logger) Verbose() *Event {
 }
 
 func isCurrentLevelEnabled(e *Event) bool {
-	return e.level <= e.logger.maxLevel
+	return e.level <= e.logger.getMaxLevel()
 }
 
 // formatAttrValue converts slog.Value to string representation appropriate for gologger metadata
@@ -391,7 +396,7 @@ func slogLevelToGologgerLevel(level slog.Level) levels.Level {
 // Enabled implements slog.Handler interface
 func (l *Logger) Enabled(_ context.Context, level slog.Level) bool {
 	gologgerLevel := slogLevelToGologgerLevel(level)
-	return gologgerLevel <= l.maxLevel
+	return gologgerLevel <= l.getMaxLevel()
 }
 
 // Handle implements slog.Handler interface
@@ -448,9 +453,8 @@ func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
 	copy(persistedAttrs, l.persistedAttrs)
 	copy(persistedAttrs[len(l.persistedAttrs):], attrs)
 
-	return &Logger{
+	child := &Logger{
 		writer:            l.writer,
-		maxLevel:          l.maxLevel,
 		formatter:         l.formatter,
 		timestampMinLevel: l.timestampMinLevel,
 		timestamp:         l.timestamp,
@@ -458,6 +462,8 @@ func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
 		groupPrefix:       l.groupPrefix,
 		persistedAttrs:    persistedAttrs,
 	}
+	child.maxLevel.Store(l.maxLevel.Load())
+	return child
 }
 
 // WithGroup implements slog.Handler interface.
@@ -474,9 +480,8 @@ func (l *Logger) WithGroup(name string) slog.Handler {
 		newPrefix = l.groupPrefix + name + "."
 	}
 
-	return &Logger{
+	child := &Logger{
 		writer:            l.writer,
-		maxLevel:          l.maxLevel,
 		formatter:         l.formatter,
 		timestampMinLevel: l.timestampMinLevel,
 		timestamp:         l.timestamp,
@@ -484,6 +489,8 @@ func (l *Logger) WithGroup(name string) slog.Handler {
 		groupPrefix:       newPrefix,
 		persistedAttrs:    l.persistedAttrs,
 	}
+	child.maxLevel.Store(l.maxLevel.Load())
+	return child
 }
 
 // TrimGologgerLevels creates handler options that convert gologger offset levels to clean names
